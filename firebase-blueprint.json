@@ -80,6 +80,23 @@
         "details": { "type": "string" }
       },
       "required": ["uid", "action", "timestamp"]
+    },
+    "DistributionDocument": {
+      "title": "Distribution Document",
+      "description": "Formal documents for printing and distribution",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "sender": { "type": "string" },
+        "recipient": { "type": "string" },
+        "content": { "type": "string" },
+        "footer": { "type": "string" },
+        "template": { "type": "string", "enum": ["notice", "meeting", "request"] },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date", "sender", "recipient", "content", "template", "authorUid"]
     }
   },
   "firestore": {
@@ -88,6 +105,7 @@
     "/accounting/{id}": { "schema": "Accounting", "description": "Financial records" },
     "/announcements/{id}": { "schema": "Announcement", "description": "Notices" },
     "/calendar_events/{id}": { "schema": "CalendarEvent", "description": "Schedule" },
-    "/logs/{id}": { "schema": "Log", "description": "Audit logs" }
+    "/logs/{id}": { "schema": "Log", "description": "Audit logs" },
+    "/documents/{id}": { "schema": "DistributionDocument", "description": "Formal documents" }
   }
 }

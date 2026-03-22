@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth, logAction } from '../AuthContext';
-import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText } from 'lucide-react';
 import { auth } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -55,6 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           <PCNavBtn icon={<Wallet size={20}/>} label="会計・決算" active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
           <PCNavBtn icon={<Bell size={20}/>} label="お知らせ" active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} />
           <PCNavBtn icon={<Calendar size={20}/>} label="カレンダー" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
+          <PCNavBtn icon={<FileText size={20}/>} label="配布用文書" active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
           
           {isManager && (
             <>
@@ -93,6 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                activeTab === 'accounting' ? '会計・決算' : 
                activeTab === 'announcements' ? 'お知らせ' :
                activeTab === 'calendar' ? 'カレンダー' :
+               activeTab === 'documents' ? '配布用文書' :
                activeTab === 'approval' ? 'アカウント承認' :
                activeTab === 'admin' ? 'システム設定' : activeTab}
             </h3>
@@ -124,6 +126,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
         <MobileNavBtn icon={<LayoutDashboard size={20}/>} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
         <MobileNavBtn icon={<Users size={20}/>} active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
         <MobileNavBtn icon={<Wallet size={20}/>} active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
+        <MobileNavBtn icon={<FileText size={20}/>} active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
         {isManager && <MobileNavBtn icon={<UserCheck size={20}/>} active={activeTab === 'approval'} onClick={() => setActiveTab('approval')} />}
         {isMasterAdmin && <MobileNavBtn icon={<Settings size={20}/>} active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />}
         <MobileNavBtn icon={<LogOut size={20}/>} active={false} onClick={handleLogout} />

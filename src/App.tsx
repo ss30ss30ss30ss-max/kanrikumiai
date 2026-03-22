@@ -15,6 +15,7 @@ import Announcements from './components/Announcements';
 import Calendar from './components/Calendar';
 import AdminPage from './components/AdminPage';
 import AccountApproval from './components/AccountApproval';
+import DocumentCreator from './components/DocumentCreator';
 import ConfirmModal from './components/ConfirmModal';
 
 const AppContent: React.FC = () => {
@@ -45,6 +46,7 @@ const AppContent: React.FC = () => {
       case 'accounting': return <Accounting />;
       case 'announcements': return <Announcements />;
       case 'calendar': return <Calendar />;
+      case 'documents': return <DocumentCreator />;
       case 'approval': return <AccountApproval />;
       case 'admin': return <AdminPage />;
       default: return <Dashboard setActiveTab={setActiveTab} />;

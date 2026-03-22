@@ -53,6 +53,19 @@ export interface CalendarEvent {
   authorUid: string;
 }
 
+export interface DistributionDocument {
+  id: string;
+  title: string;
+  date: string;
+  sender: string;
+  recipient: string;
+  content: string;
+  footer?: string;
+  template: 'notice' | 'meeting' | 'request';
+  authorUid: string;
+  createdAt: string;
+}
+
 export interface SystemLog {
   id: string;
   uid: string;

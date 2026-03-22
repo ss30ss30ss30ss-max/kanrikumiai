@@ -24,6 +24,10 @@ service cloud.firestore {
     // Document ID: auto-generated
     // Fields: title, description, startDate, endDate, authorUid
     //
+    // Collection: documents
+    // Document ID: auto-generated
+    // Fields: title, date, sender, recipient, content, footer, template, authorUid, createdAt
+    //
     // Collection: logs
     // Document ID: auto-generated
     // Fields: uid, action, timestamp, details
@@ -108,6 +112,11 @@ service cloud.firestore {
     match /logs/{id} {
       allow read: if isManager();
       allow create: if isAuthenticated();
+    }
+
+    match /documents/{id} {
+      allow read: if isApproved();
+      allow write: if isManager() || isAsstManager();
     }
   }
 }

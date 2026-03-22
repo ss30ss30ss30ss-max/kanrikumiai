@@ -3,7 +3,7 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Announcement, CalendarEvent, AccountingRecord } from '../types';
-import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings } from 'lucide-react';
+import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const QuickAction = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick: () => void }) => (
@@ -78,10 +78,11 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
         </div>
 
         {/* Quick Actions */}
-        <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-5 gap-6">
           <QuickAction icon={<Users className="text-indigo-400" size={20}/>} label="名簿確認" onClick={() => setActiveTab('members')} />
           <QuickAction icon={<Bell className="text-orange-400" size={20}/>} label="掲示板" onClick={() => setActiveTab('announcements')} />
           <QuickAction icon={<CreditCard className="text-emerald-400" size={20}/>} label="会計・決算" onClick={() => setActiveTab('accounting')} />
+          <QuickAction icon={<FileText className="text-blue-400" size={20}/>} label="配布用文書" onClick={() => setActiveTab('documents')} />
           <QuickAction icon={<Settings className="text-slate-400" size={20}/>} label="システム設定" onClick={() => profile?.role === 'manager' ? setActiveTab('admin') : setActiveTab('dashboard')} />
         </div>
       </div>
