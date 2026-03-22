@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["manager", "accountant", "asst_accountant", "asst_manager", "resident"] },
+        "roomNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "isApproved"]
+    },
+    "Member": {
+      "title": "Member Record",
+      "description": "Resident directory information",
+      "type": "object",
+      "properties": {
+        "roomNumber": { "type": "string" },
+        "parkingNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "contact": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["paid", "unpaid"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomNumber", "name"]
+    },
+    "Accounting": {
+      "title": "Accounting Record",
+      "description": "Income and expense tracking",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["date", "type", "amount"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Notices for residents",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "authorUid": { "type": "string" },
+        "fileUrl": { "type": "string" }
+      },
+      "required": ["title", "content", "date"]
+    },
+    "CalendarEvent": {
+      "title": "Calendar Event",
+      "description": "Shared events and schedules",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["title", "startDate", "endDate"]
+    },
+    "Log": {
+      "title": "System Log",
+      "description": "Audit trail for actions",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "string" }
+      },
+      "required": ["uid", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/members/{roomNumber}": { "schema": "Member", "description": "Resident directory" },
+    "/accounting/{id}": { "schema": "Accounting", "description": "Financial records" },
+    "/announcements/{id}": { "schema": "Announcement", "description": "Notices" },
+    "/calendar_events/{id}": { "schema": "CalendarEvent", "description": "Schedule" },
+    "/logs/{id}": { "schema": "Log", "description": "Audit logs" }
+  }
+}

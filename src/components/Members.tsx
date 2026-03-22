@@ -1,0 +1,374 @@
+import React, { useState, useEffect } from 'react';
+import { collection, onSnapshot, query, doc, setDoc, deleteDoc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { useAuth } from '../AuthContext';
+import { Member } from '../types';
+import { Search, Phone, Car, Check, Clock, ShieldAlert, UserPlus, Trash2, X, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import ConfirmModal from './ConfirmModal';
+
+const Members: React.FC = () => {
+  const { profile, handleFirestoreError } = useAuth();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+  const [newMember, setNewMember] = useState<Partial<Member>>({
+    roomNumber: '',
+    name: '',
+    parkingNumber: '',
+    phone: '',
+    position: '居住者',
+    paymentStatus: 'unpaid'
+  });
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const q = query(collection(db, 'members'), orderBy('roomNumber', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMembers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+    }, (err) => handleFirestoreError(err, 'get' as any, 'members', auth.currentUser));
+
+    return () => unsubscribe();
+  }, [profile]);
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMember.roomNumber || !newMember.name) return;
+
+    try {
+      const memberId = newMember.roomNumber;
+      await setDoc(doc(db, 'members', memberId), {
+        ...newMember,
+        updatedAt: new Date().toISOString()
+      });
+      setShowAddModal(false);
+      setNewMember({ roomNumber: '', name: '', parkingNumber: '', phone: '', position: '居住者', paymentStatus: 'unpaid' });
+    } catch (err) {
+      console.error("Add member error:", err);
+    }
+  };
+
+  const handleDeleteMember = (id: string) => {
+    setMemberToDelete(id);
+    setIsConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!memberToDelete) return;
+    try {
+      await deleteDoc(doc(db, 'members', memberToDelete));
+      setMemberToDelete(null);
+    } catch (err) {
+      console.error("Delete member error:", err);
+    }
+  };
+
+  const togglePayment = async (id: string, currentStatus: string) => {
+    if (!profile || !['manager', 'accountant'].includes(profile.role)) return;
+    try {
+      await updateDoc(doc(db, 'members', id), {
+        paymentStatus: currentStatus === 'paid' ? 'unpaid' : 'paid',
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Update payment status error:", err);
+    }
+  };
+
+  const filteredMembers = members.filter(m => 
+    (m.roomNumber?.includes(searchQuery)) || 
+    (m.name?.includes(searchQuery)) || 
+    (m.parkingNumber?.includes(searchQuery))
+  );
+
+  const isPrivileged = profile && ['manager', 'accountant', 'asst_manager'].includes(profile.role);
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter text-white">居住者名簿</h2>
+          <p className="text-slate-500 mt-2 font-medium">マンションの居住者情報を確認できます。役員のみ詳細情報にアクセス可能です。</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+          <div className="relative group w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
+            <input 
+              type="text" 
+              placeholder="部屋・氏名・駐車場番号で検索..." 
+              className="w-full h-12 bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-6 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          {isPrivileged && (
+            <button 
+              onClick={() => setShowAddModal(true)}
+              className="h-12 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95"
+            >
+              <Plus size={18} /> 新規追加
+            </button>
+          )}
+        </div>
+      </header>
+
+      <div className="glass-card overflow-hidden">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-950/50 border-b border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                <th className="px-8 py-6">部屋番号</th>
+                <th className="px-8 py-6">氏名</th>
+                <th className="px-8 py-6">役職</th>
+                <th className="px-8 py-6">駐車場</th>
+                {isPrivileged && <th className="px-8 py-6">電話番号</th>}
+                {isPrivileged && <th className="px-8 py-6 text-center">状況</th>}
+                {isPrivileged && <th className="px-8 py-6 text-right">操作</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {filteredMembers.map((member: any) => (
+                <tr key={member.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <td className="px-8 py-6">
+                    <span className="inline-flex items-center justify-center px-4 py-1.5 bg-slate-950 rounded-xl text-xs font-mono font-black text-indigo-400 border border-slate-800">
+                      {member.roomNumber || '---'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex flex-col">
+                      <span className="font-black text-white text-sm whitespace-nowrap group-hover:text-indigo-400 transition-colors">{member.name || '未設定'}</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      member.position && member.position !== '居住者'
+                      ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700'
+                    }`}>
+                      {member.position || '居住者'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-2 text-indigo-300 text-sm font-bold whitespace-nowrap">
+                      <Car size={14} className="text-indigo-500/50" />
+                      {member.parkingNumber || '無'}
+                    </div>
+                  </td>
+                  {isPrivileged && (
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2 text-slate-400 text-sm font-mono font-bold whitespace-nowrap">
+                        <Phone size={14} className="text-slate-600" />
+                        {member.phone || '---'}
+                      </div>
+                    </td>
+                  )}
+                  {isPrivileged && (
+                    <td className="px-8 py-6">
+                      <div className="flex justify-center">
+                        <button 
+                          onClick={() => togglePayment(member.id, member.paymentStatus)}
+                          className={`px-5 py-2 rounded-full text-[10px] font-black tracking-tighter uppercase border transition-all flex items-center gap-2 whitespace-nowrap ${
+                            member.paymentStatus === 'paid'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
+                            : 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
+                          }`}
+                        >
+                          {member.paymentStatus === 'paid' ? <><Check size={12}/> 納入済</> : <><Clock size={12}/> 未納</>}
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                  {isPrivileged && (
+                    <td className="px-8 py-6 text-right">
+                      <button 
+                        onClick={() => handleDeleteMember(member.id)}
+                        className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden divide-y divide-slate-800/50">
+          {filteredMembers.map((member: any) => (
+            <div key={member.id} className="p-6 space-y-4 hover:bg-slate-800/30 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center justify-center px-3 py-1 bg-slate-950 rounded-lg text-xs font-mono font-black text-indigo-400 border border-slate-800">
+                    {member.roomNumber || '---'}
+                  </span>
+                  <h4 className="font-black text-white text-base">{member.name || '未設定'}</h4>
+                </div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                  member.position && member.position !== '居住者'
+                  ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                  : 'bg-slate-800 text-slate-500 border border-slate-700'
+                }`}>
+                  {member.position || '居住者'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                  <Car size={14} className="text-indigo-500/50" />
+                  <span className="text-slate-500 font-medium mr-1">駐車場:</span>
+                  <span className="text-indigo-300">{member.parkingNumber || '無'}</span>
+                </div>
+                {isPrivileged && (
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-mono font-bold">
+                    <Phone size={14} className="text-slate-600" />
+                    {member.phone || '---'}
+                  </div>
+                )}
+              </div>
+
+              {isPrivileged && (
+                <div className="flex items-center justify-between pt-2">
+                  <button 
+                    onClick={() => togglePayment(member.id, member.paymentStatus)}
+                    className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-tighter uppercase border transition-all flex items-center justify-center gap-2 ${
+                      member.paymentStatus === 'paid'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                    }`}
+                  >
+                    {member.paymentStatus === 'paid' ? <><Check size={12}/> 納入済</> : <><Clock size={12}/> 未納</>}
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteMember(member.id)}
+                    className="ml-4 p-2.5 text-slate-600 hover:text-rose-500 bg-slate-950 rounded-xl border border-slate-800"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {filteredMembers.length === 0 && (
+          <div className="p-24 text-center">
+            <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-800">
+              <Search size={24} className="text-slate-700" />
+            </div>
+            <p className="text-slate-500 text-sm font-bold italic">該当する居住者が見つかりませんでした。</p>
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                  <UserPlus className="text-indigo-500" />
+                  居住者登録
+                </h3>
+                <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddMember} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">部屋番号</label>
+                    <input 
+                      type="text" 
+                      required 
+                      className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      value={newMember.roomNumber}
+                      onChange={(e) => setNewMember({...newMember, roomNumber: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">駐車場番号</label>
+                    <select 
+                      className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      value={newMember.parkingNumber}
+                      onChange={(e) => setNewMember({...newMember, parkingNumber: e.target.value})}
+                    >
+                      <option value="">無</option>
+                      {Array.from({ length: 40 }, (_, i) => i + 1).map(num => (
+                        <option key={num} value={num.toString()}>{num}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">氏名</label>
+                  <input 
+                    type="text" 
+                    required 
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={newMember.name}
+                    onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">役職</label>
+                  <select 
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={newMember.position}
+                    onChange={(e) => setNewMember({...newMember, position: e.target.value})}
+                  >
+                    <option value="居住者">居住者</option>
+                    <option value="理事長">理事長</option>
+                    <option value="副理事長">副理事長</option>
+                    <option value="会計">会計</option>
+                    <option value="監事">監事</option>
+                    <option value="管理人">管理人</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">電話番号</label>
+                  <input 
+                    type="tel" 
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={newMember.phone}
+                    onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
+                  />
+                </div>
+
+                <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black shadow-lg shadow-indigo-900/20 transition-all active:scale-95 mt-4">
+                  登録する
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        onClose={() => {
+          setIsConfirmOpen(false);
+          setMemberToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="居住者の削除"
+        message="この居住者情報を削除してもよろしいですか？この操作は取り消せません。"
+      />
+    </div>
+  );
+};
+
+export default Members;

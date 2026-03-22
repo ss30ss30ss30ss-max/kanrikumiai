@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: uid
+    // Fields: uid, email, role, roomNumber, name, isApproved, createdAt
+    //
+    // Collection: members
+    // Document ID: roomNumber
+    // Fields: roomNumber, parkingNumber, name, contact, paymentStatus, updatedAt
+    //
+    // Collection: accounting
+    // Document ID: auto-generated
+    // Fields: date, type, category, amount, description, authorUid
+    //
+    // Collection: announcements
+    // Document ID: auto-generated
+    // Fields: title, content, date, authorUid, fileUrl
+    //
+    // Collection: calendar_events
+    // Document ID: auto-generated
+    // Fields: title, description, startDate, endDate, authorUid
+    //
+    // Collection: logs
+    // Document ID: auto-generated
+    // Fields: uid, action, timestamp, details
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isDefaultAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == "ss30ss30ss30ss@gmail.com" || 
+              request.auth.token.email == "admin@smart-management.local");
+    }
+
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function userExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == role;
+    }
+
+    function isManager() {
+      return isDefaultAdmin() || hasRole('manager');
+    }
+
+    function isApproved() {
+      return isManager() || (isAuthenticated() && userExists(request.auth.uid) && getUserData(request.auth.uid).isApproved == true);
+    }
+
+    function isAccountant() {
+      return hasRole('accountant') || hasRole('asst_accountant');
+    }
+
+    function isAsstManager() {
+      return hasRole('asst_manager');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'isApproved']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['manager', 'accountant', 'asst_accountant', 'asst_manager', 'resident'] &&
+             data.isApproved is bool;
+    }
+
+    // Rules
+    match /users/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isDefaultAdmin() || hasRole('manager'));
+      allow create: if isAuthenticated() && request.auth.uid == uid && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'resident' || isDefaultAdmin());
+      allow update: if isDefaultAdmin() || hasRole('manager') || (isAuthenticated() && request.auth.uid == uid && request.resource.data.role == resource.data.role);
+      allow delete: if isDefaultAdmin() || hasRole('manager');
+    }
+
+    match /members/{roomNumber} {
+      allow read: if isApproved();
+      allow write: if isManager() || isAccountant();
+    }
+
+    match /accounting/{id} {
+      allow read: if isApproved();
+      allow write: if isManager() || isAccountant();
+    }
+
+    match /announcements/{id} {
+      allow read: if isApproved();
+      allow write: if isManager() || isAsstManager();
+    }
+
+    match /calendar_events/{id} {
+      allow read: if isApproved();
+      allow write: if isManager() || isAsstManager();
+    }
+
+    match /logs/{id} {
+      allow read: if isManager();
+      allow create: if isAuthenticated();
+    }
+  }
+}
