@@ -34,6 +34,9 @@ const Members: React.FC = () => {
     return () => unsubscribe();
   }, [profile]);
 
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMember.roomNumber || !newMember.name) return;
@@ -67,7 +70,7 @@ const Members: React.FC = () => {
   };
 
   const togglePayment = async (id: string, currentStatus: string) => {
-    if (!profile || !['manager', 'accountant'].includes(profile.role)) return;
+    if (!isPrivileged) return;
     try {
       await updateDoc(doc(db, 'members', id), {
         paymentStatus: currentStatus === 'paid' ? 'unpaid' : 'paid',
@@ -83,8 +86,6 @@ const Members: React.FC = () => {
     (m.name?.includes(searchQuery)) || 
     (m.parkingNumber?.includes(searchQuery))
   );
-
-  const isPrivileged = profile && ['manager', 'accountant', 'asst_manager'].includes(profile.role);
 
   return (
     <div className="space-y-8">

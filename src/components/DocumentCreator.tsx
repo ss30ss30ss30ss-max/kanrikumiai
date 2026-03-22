@@ -3,13 +3,12 @@ import { collection, onSnapshot, query, addDoc, deleteDoc, doc, updateDoc, order
 import { db } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { DistributionDocument } from '../types';
-import { FileText, Plus, Download, Trash2, Edit2, FileCheck, AlertTriangle, Users, Save, Eye, X, Sparkles, Loader2 } from 'lucide-react';
+import { FileText, Plus, Download, Trash2, Edit2, FileCheck, AlertTriangle, Users, Save, Eye, X, Loader2, FileDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import ConfirmModal from './ConfirmModal';
-import { GoogleGenAI } from "@google/genai";
 
 const templates = [
   { 
@@ -46,6 +45,7 @@ const DocumentCreator: React.FC = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete', id: string } | null>(null);
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const [downloadPreviewDoc, setDownloadPreviewDoc] = useState<DistributionDocument | null>(null);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -58,8 +58,6 @@ const DocumentCreator: React.FC = () => {
   });
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
 
   useEffect(() => {
     if (!profile) return;
@@ -167,6 +165,7 @@ const DocumentCreator: React.FC = () => {
           style.innerHTML = `
             * {
               color-scheme: light !important;
+              font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
             }
             #doc-preview-${docData.id}, #doc-preview-${docData.id} * {
               color-scheme: light !important;
@@ -188,7 +187,6 @@ const DocumentCreator: React.FC = () => {
               padding: 60px !important;
               width: 800px !important;
               margin: 0 !important;
-              font-family: "MS Mincho", "Hiragino Mincho ProN", serif !important;
             }
             #doc-preview-${docData.id} svg {
               stroke: #000000 !important;
@@ -242,57 +240,33 @@ const DocumentCreator: React.FC = () => {
     }
   };
 
-  const handleAiGenerate = async () => {
-    if (!aiPrompt) return;
-    setIsAiGenerating(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `マンション管理組合の配布用文書を作成してください。
-テーマ: ${aiPrompt}
-テンプレートタイプ: ${formData.template}
-宛先: ${formData.recipient}
-差出人: ${formData.sender}
+  const handleDownloadText = (docData: DistributionDocument) => {
+    const text = `
+【${docData.title}】
 
-以下の形式で出力してください：
-【タイトル】
-（ここにタイトル）
-【本文】
-（ここに本文。Markdown形式で、箇条書きなどを使って分かりやすく）`,
-        config: {
-          systemInstruction: "あなたはプロのマンション管理人です。丁寧で分かりやすく、かつ正式な文書を作成します。余計な挨拶や解説は省き、指定された形式のみを出力してください。",
-        }
-      });
+宛先：${docData.recipient}
+日付：${docData.date}
+差出人：${docData.sender}
 
-      const text = response.text;
-      if (text) {
-        const titleMatch = text.match(/【タイトル】\n([\s\S]*?)\n【本文】/);
-        const contentMatch = text.match(/【本文】\n([\s\S]*)/);
-        
-        if (titleMatch && contentMatch) {
-          setFormData({
-            ...formData,
-            title: titleMatch[1].trim(),
-            content: contentMatch[1].trim()
-          });
-        } else {
-          // Fallback if regex fails
-          setFormData({
-            ...formData,
-            content: text
-          });
-        }
-      }
-      setAiPrompt('');
-    } catch (error) {
-      console.error("AI Generation error:", error);
-    } finally {
-      setIsAiGenerating(false);
-    }
+--------------------------------------------------
+
+${docData.content}
+
+--------------------------------------------------
+${docData.footer || ''}
+    `.trim();
+
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `配布文書_${docData.title}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
-  const isManager = profile?.role === 'manager' || profile?.role === 'asst_manager';
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isManager = profile && (['manager', 'admin', 'asst_manager', 'accountant', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
 
   return (
     <div className="space-y-8 pb-20">
@@ -306,13 +280,15 @@ const DocumentCreator: React.FC = () => {
         </div>
         
         {isManager && (
-          <button 
-            onClick={() => { resetForm(); setIsModalOpen(true); }}
-            className="btn-primary md:w-auto px-8"
-          >
-            <Plus size={20} />
-            新規文書作成
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => { resetForm(); setIsModalOpen(true); }}
+              className="btn-primary md:w-auto px-8"
+            >
+              <Plus size={20} />
+              新規文書作成
+            </button>
+          </div>
         )}
       </div>
 
@@ -350,12 +326,11 @@ const DocumentCreator: React.FC = () => {
             <div className="p-4 bg-slate-950/30 border-t border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <button 
-                  onClick={() => handleDownloadPDF(doc)}
-                  disabled={isGenerating === doc.id}
+                  onClick={() => setDownloadPreviewDoc(doc)}
                   className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-all"
-                  title="PDFダウンロード"
+                  title="プレビュー・ダウンロード"
                 >
-                  <Download size={18} className={isGenerating === doc.id ? 'animate-bounce' : ''} />
+                  <Download size={18} />
                 </button>
                 <button 
                   onClick={() => { 
@@ -394,31 +369,6 @@ const DocumentCreator: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* Hidden Preview for PDF Generation */}
-            <div className="hidden">
-              <div id={`doc-preview-${doc.id}`} className="bg-white text-black p-10 font-serif">
-                <div className="flex justify-between mb-10 text-sm">
-                  <div>宛先：{doc.recipient}</div>
-                  <div className="text-right">
-                    <div>{doc.date}</div>
-                    <div className="font-bold mt-1">{doc.sender}</div>
-                  </div>
-                </div>
-                
-                <h1 className="text-3xl font-bold text-center mb-16 underline underline-offset-8">{doc.title}</h1>
-                
-                <div className="text-lg leading-relaxed min-h-[500px] whitespace-pre-wrap">
-                  {doc.content}
-                </div>
-                
-                {doc.footer && (
-                  <div className="mt-20 pt-4 border-t border-black text-right text-sm italic">
-                    {doc.footer}
-                  </div>
-                )}
-              </div>
-            </div>
           </motion.div>
         ))}
       </div>
@@ -447,32 +397,6 @@ const DocumentCreator: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Form */}
                   <div className="space-y-6">
-                    <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-[2rem] space-y-4">
-                      <div className="flex items-center gap-2 text-indigo-400 font-black text-xs uppercase tracking-widest">
-                        <Sparkles size={16} />
-                        AIアシスタント
-                      </div>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          placeholder="例：駐輪場のマナー改善について..." 
-                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 text-xs text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                        />
-                        <button 
-                          type="button"
-                          onClick={handleAiGenerate}
-                          disabled={isAiGenerating || !aiPrompt}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2"
-                        >
-                          {isAiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                          生成
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-slate-500 font-medium">テーマを入力して「生成」を押すと、AIがタイトルと本文を提案します。</p>
-                    </div>
-
                     <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">テンプレート選択</label>
@@ -610,34 +534,36 @@ const DocumentCreator: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-3xl bg-white text-black p-12 md:p-20 shadow-2xl font-serif relative overflow-y-auto max-h-[95vh]"
+              className="w-full max-w-3xl bg-white text-black p-8 md:p-12 shadow-2xl relative overflow-y-auto max-h-[95vh] rounded-3xl"
             >
               <button 
                 onClick={() => setIsPreviewOpen(false)}
-                className="absolute top-6 right-6 p-2 bg-slate-100 text-slate-900 rounded-full hover:bg-slate-200 transition-all no-pdf"
+                className="absolute top-6 right-6 p-2 bg-slate-100 text-slate-900 rounded-full hover:bg-slate-200 transition-all no-pdf z-10"
               >
                 <X size={24} />
               </button>
 
-              <div className="flex justify-between mb-12 text-sm">
-                <div>宛先：{formData.recipient}</div>
-                <div className="text-right">
-                  <div>{formData.date}</div>
-                  <div className="font-bold mt-1">{formData.sender}</div>
+              <div id="doc-preview-full" className="space-y-10 bg-white text-black p-4 md:p-8">
+                <div className="flex justify-between mb-12 text-sm">
+                  <div>宛先：{formData.recipient}</div>
+                  <div className="text-right">
+                    <div>{formData.date}</div>
+                    <div className="font-bold mt-1">{formData.sender}</div>
+                  </div>
                 </div>
-              </div>
-              
-              <h1 className="text-3xl font-bold text-center mb-20 underline underline-offset-8">{formData.title}</h1>
-              
-              <div className="text-lg leading-relaxed min-h-[400px] whitespace-pre-wrap">
-                {formData.content}
-              </div>
-              
-              {formData.footer && (
-                <div className="mt-20 pt-4 border-t border-black text-right text-sm italic">
-                  {formData.footer}
+                
+                <h1 className="text-3xl font-bold text-center mb-20 underline underline-offset-8">{formData.title}</h1>
+                
+                <div className="text-lg leading-relaxed min-h-[400px] whitespace-pre-wrap">
+                  {formData.content}
                 </div>
-              )}
+                
+                {formData.footer && (
+                  <div className="mt-20 pt-4 border-t border-black text-right text-sm italic">
+                    {formData.footer}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </div>
         )}
@@ -652,6 +578,79 @@ const DocumentCreator: React.FC = () => {
         confirmText="削除する"
         variant="danger"
       />
+
+      {/* Download Preview Modal */}
+      <AnimatePresence>
+        {downloadPreviewDoc && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                  <Eye className="text-indigo-500" />
+                  ダウンロードプレビュー
+                </h3>
+                <button 
+                  onClick={() => setDownloadPreviewDoc(null)}
+                  className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
+                <div id={`doc-preview-${downloadPreviewDoc.id}`} className="bg-white text-black p-12 shadow-2xl mx-auto w-full max-w-[600px] min-h-[800px] flex flex-col">
+                  <div className="flex justify-between mb-12 text-[10px]">
+                    <div>宛先：{downloadPreviewDoc.recipient}</div>
+                    <div className="text-right">
+                      <div>{downloadPreviewDoc.date}</div>
+                      <div className="font-bold mt-1">{downloadPreviewDoc.sender}</div>
+                    </div>
+                  </div>
+                  
+                  <h1 className="text-2xl font-bold text-center mb-12 underline underline-offset-8">{downloadPreviewDoc.title}</h1>
+                  
+                  <div className="text-sm leading-relaxed flex-1 whitespace-pre-wrap">
+                    {downloadPreviewDoc.content}
+                  </div>
+                  
+                  {downloadPreviewDoc.footer && (
+                    <div className="mt-12 pt-4 border-t border-black text-right text-[8px] italic">
+                      {downloadPreviewDoc.footer}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-slate-800 bg-slate-900/50 grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => handleDownloadPDF(downloadPreviewDoc)}
+                  disabled={isGenerating === downloadPreviewDoc.id}
+                  className="flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-500 transition-all disabled:opacity-50"
+                >
+                  {isGenerating === downloadPreviewDoc.id ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Download size={20} />
+                  )}
+                  PDFで保存
+                </button>
+                <button
+                  onClick={() => handleDownloadText(downloadPreviewDoc)}
+                  className="flex items-center justify-center gap-3 py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-700 transition-all"
+                >
+                  <FileDown size={20} />
+                  テキストで保存
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

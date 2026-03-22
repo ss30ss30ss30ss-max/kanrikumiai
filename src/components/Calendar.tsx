@@ -22,7 +22,8 @@ const Calendar: React.FC = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<string | null>(null);
 
-  const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager';
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager' || isMasterAdmin;
 
   useEffect(() => {
     if (!profile) return;

@@ -53,7 +53,8 @@ const Announcements: React.FC = () => {
     setContent(template.content);
   };
 
-  const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager';
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager' || isMasterAdmin;
 
   const markAsRead = async (annId: string) => {
     if (!profile || !auth.currentUser) return;

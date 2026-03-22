@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { Settings, Shield, UserCheck, History, Search, Check, X, ShieldCheck, ShieldAlert, Activity, Trash2, MessageSquare } from 'lucide-react';
@@ -21,9 +21,10 @@ const AdminPage: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<{ uid: string; name: string } | null>(null);
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'admin'].includes(profile.role) || isMasterAdmin);
 
   useEffect(() => {
-    if (!isMasterAdmin) return;
+    if (!isPrivileged) return;
 
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       setUsers(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
@@ -38,7 +39,7 @@ const AdminPage: React.FC = () => {
       unsubUsers();
       unsubLogs();
     };
-  }, [isMasterAdmin]);
+  }, [isPrivileged]);
 
   const handleRoleChange = async (uid: string, role: string) => {
     const targetUser = users.find(u => u.uid === uid);
@@ -69,6 +70,15 @@ const AdminPage: React.FC = () => {
 
     try {
       await deleteDoc(doc(db, 'users', uid));
+      
+      // Also clear room_registry if this user was the active one
+      if (targetUser?.roomNumber) {
+        const registryDoc = await getDoc(doc(db, 'room_registry', targetUser.roomNumber));
+        if (registryDoc.exists() && registryDoc.data().uid === uid) {
+          await deleteDoc(doc(db, 'room_registry', targetUser.roomNumber));
+        }
+      }
+
       if (auth.currentUser) {
         await logAction('アカウント削除', `${targetUser?.roomNumber || '管理者'}（${name || '未設定'}）のアカウントを削除しました`, auth.currentUser.uid);
       }
@@ -90,7 +100,7 @@ const AdminPage: React.FC = () => {
     return !isAccess;
   });
 
-  if (!isMasterAdmin) {
+  if (!isPrivileged) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
         <div className="w-20 h-20 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
@@ -198,6 +208,7 @@ const AdminPage: React.FC = () => {
                           >
                             <option value="resident">居住者</option>
                             <option value="manager">管理人</option>
+                            <option value="admin">システム管理者</option>
                             <option value="accountant">会計</option>
                             <option value="asst_accountant">会計補佐</option>
                             <option value="asst_manager">管理補佐</option>

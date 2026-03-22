@@ -26,6 +26,9 @@ const Accounting: React.FC = () => {
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+
   useEffect(() => {
     if (!profile) return;
 
@@ -58,6 +61,7 @@ const Accounting: React.FC = () => {
           style.innerHTML = `
             * {
               color-scheme: light !important;
+              font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
             }
             #accounting-report-area-preview, #accounting-report-area-preview * {
               color-scheme: light !important;
@@ -116,7 +120,7 @@ const Accounting: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || !['manager', 'accountant'].includes(profile.role)) return;
+    if (!profile || !isPrivileged) return;
 
     try {
       if (editingId) {
@@ -157,7 +161,7 @@ const Accounting: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!profile || !['manager', 'accountant'].includes(profile.role)) return;
+    if (!profile || !isPrivileged) return;
     setRecordToDelete(id);
     setIsConfirmOpen(true);
   };
@@ -178,8 +182,6 @@ const Accounting: React.FC = () => {
   const totalIncome = records.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
   const totalExpense = records.filter(r => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0);
   const balance = totalIncome - totalExpense;
-
-  const isPrivileged = profile && ['manager', 'accountant'].includes(profile.role);
 
   return (
     <div className="space-y-8">
@@ -415,9 +417,9 @@ const Accounting: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-4xl bg-white text-black p-12 md:p-20 shadow-2xl font-serif relative overflow-y-auto max-h-[95vh]"
+              className="w-full max-w-4xl bg-white text-black p-8 md:p-12 shadow-2xl relative overflow-y-auto max-h-[95vh] rounded-3xl"
             >
-              <div className="flex justify-between items-center mb-12 no-pdf">
+              <div className="flex justify-between items-center mb-8 no-pdf sticky top-0 bg-white/80 backdrop-blur-sm py-2 z-10">
                 <h3 className="text-xl font-black text-slate-900">決算報告書プレビュー</h3>
                 <div className="flex gap-4">
                   <button 
@@ -437,7 +439,7 @@ const Accounting: React.FC = () => {
                 </div>
               </div>
 
-              <div id="accounting-report-area-preview" className="space-y-12 bg-white text-black p-8">
+              <div id="accounting-report-area-preview" className="space-y-10 bg-white text-black p-4 md:p-8">
                 <div className="text-center space-y-4">
                   <h1 className="text-4xl font-bold underline underline-offset-8 decoration-2 text-black">収支決算報告書</h1>
                   <p className="text-sm text-slate-600">作成日: {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</p>

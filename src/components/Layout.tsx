@@ -28,6 +28,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   const { profile, user, handleFirestoreError } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadInquiries, setUnreadInquiries] = useState(0);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+  const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
 
   useEffect(() => {
     if (!profile || !auth.currentUser) return;
@@ -38,12 +43,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       const unread = announcements.filter(ann => !ann.readBy?.includes(auth.currentUser?.uid || ''));
       setUnreadCount(unread.length);
     }, (error) => {
-      handleFirestoreError(error, 'list' as any, 'announcements');
+      // Only log error if the user is actually supposed to have access
+      if (profile?.isApproved) {
+        handleFirestoreError(error, 'list' as any, 'announcements');
+      }
     });
 
     // Inquiry unread count
-    const isManager = profile?.role === 'manager' || profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
-    
     let unsubscribeInq: (() => void) | null = null;
     if (auth.currentUser && profile) {
       let qInq;
@@ -63,11 +69,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       });
     }
 
+    // Pending approval count - only for managers who have permission
+    let unsubscribeApproval: (() => void) | null = null;
+    if (isManager) {
+      const qApproval = query(collection(db, 'users'), where('isApproved', '==', false));
+      unsubscribeApproval = onSnapshot(qApproval, (snapshot) => {
+        setPendingApprovalCount(snapshot.docs.length);
+      }, (error) => {
+        console.warn('Pending approval count error:', error.message);
+      });
+    }
+
     return () => {
       unsubscribe();
       if (unsubscribeInq) unsubscribeInq();
+      if (unsubscribeApproval) unsubscribeApproval();
     };
-  }, [profile]);
+  }, [profile, isManager, isPrivileged]);
 
   const handleLogout = async () => {
     if (user) {
@@ -76,10 +94,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
     auth.signOut();
   };
 
-  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
-  const isManager = profile?.role === 'manager' || isMasterAdmin;
-
-  const roleLabel = isMasterAdmin ? 'システム管理者' :
+  const roleLabel = isMasterAdmin ? 'マスター管理者' :
+                    profile?.role === 'admin' ? 'システム管理者' :
                     profile?.role === 'manager' ? '管理人' : 
                     profile?.role === 'accountant' ? '会計' : 
                     profile?.role === 'asst_accountant' ? '会計補佐' :
@@ -99,26 +115,38 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           <PCNavBtn icon={<Users size={20}/>} label="名簿確認" active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
           <PCNavBtn icon={<Wallet size={20}/>} label="会計・決算" active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
           <PCNavBtn icon={<Bell size={20}/>} label="お知らせ" active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} />
-          {!isManager && (
-            <PCNavBtn 
-              icon={<div className="relative"><MessageSquare size={20}/>{unreadInquiries > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>}</div>} 
-              label="問い合わせ" 
-              active={activeTab === 'inquiries'} 
-              onClick={() => setActiveTab('inquiries')} 
-            />
-          )}
+          <PCNavBtn 
+            icon={<div className="relative"><MessageSquare size={20}/>{unreadInquiries > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>}</div>} 
+            label="問い合わせ" 
+            active={activeTab === 'inquiries'} 
+            onClick={() => setActiveTab('inquiries')} 
+          />
           <PCNavBtn icon={<Calendar size={20}/>} label="カレンダー" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
           <PCNavBtn icon={<Sparkles size={20} className="text-indigo-400" />} label="AIコンシェルジュ" active={false} onClick={() => window.dispatchEvent(new CustomEvent('open-ai-concierge'))} />
           
-          {isManager && (
+          {isPrivileged && (
             <>
               <PCNavBtn icon={<FileText size={20}/>} label="配布用文書" active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
               <div className="pt-6 pb-2 px-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">管理業務</div>
-              <PCNavBtn icon={<UserCheck size={20}/>} label="アカウント承認" active={activeTab === 'approval'} onClick={() => setActiveTab('approval')} />
+              <PCNavBtn 
+                icon={
+                  <div className="relative">
+                    <UserCheck size={20}/>
+                    {pendingApprovalCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[8px] font-black flex items-center justify-center rounded-full border border-slate-950 animate-bounce">
+                        {pendingApprovalCount}
+                      </span>
+                    )}
+                  </div>
+                } 
+                label="アカウント承認" 
+                active={activeTab === 'approval'} 
+                onClick={() => setActiveTab('approval')} 
+              />
             </>
           )}
 
-          {isMasterAdmin && (
+          {isManager && (
             <PCNavBtn icon={<Settings size={20}/>} label="システム設定" active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />
           )}
         </nav>
@@ -186,18 +214,35 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       </div>
 
       {/* Mobile Nav */}
-      <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-16 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 flex items-center justify-around rounded-3xl z-50 shadow-2xl">
+      <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-16 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 flex items-center justify-around rounded-3xl z-50 shadow-2xl px-2">
         <MobileNavBtn icon={<LayoutDashboard size={20}/>} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
         <MobileNavBtn icon={<Users size={20}/>} active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
-        {!isManager && (
-          <MobileNavBtn 
-            icon={<div className="relative"><MessageSquare size={20}/>{unreadInquiries > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>}</div>} 
-            active={activeTab === 'inquiries'} 
-            onClick={() => setActiveTab('inquiries')} 
-          />
-        )}
+        <MobileNavBtn 
+          icon={<div className="relative"><MessageSquare size={20}/>{unreadInquiries > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>}</div>} 
+          active={activeTab === 'inquiries'} 
+          onClick={() => setActiveTab('inquiries')} 
+        />
         <MobileNavBtn icon={<Bell size={20}/>} active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} />
         <MobileNavBtn icon={<Wallet size={20}/>} active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
+        
+        {isPrivileged && (
+          <>
+            <MobileNavBtn icon={<FileText size={20}/>} active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
+            <MobileNavBtn 
+              icon={
+                <div className="relative">
+                  <UserCheck size={20}/>
+                  {pendingApprovalCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+                  )}
+                </div>
+              } 
+              active={activeTab === 'approval'} 
+              onClick={() => setActiveTab('approval')} 
+            />
+          </>
+        )}
+        
         <MobileNavBtn icon={<Sparkles size={20} className="text-indigo-400" />} active={false} onClick={() => window.dispatchEvent(new CustomEvent('open-ai-concierge'))} />
         {isManager && <MobileNavBtn icon={<Settings size={20}/>} active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />}
       </nav>

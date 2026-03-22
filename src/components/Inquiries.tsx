@@ -41,7 +41,8 @@ const Inquiries: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isManager = profile?.role === 'manager' || profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isManager = profile && (['manager', 'admin', 'asst_manager', 'accountant', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
 
   useEffect(() => {
     if (!profile || !auth.currentUser) return;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, where, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { UserCheck, Check, X, ShieldCheck, AlertCircle, Trash2 } from 'lucide-react';
@@ -15,7 +15,9 @@ const AccountApproval: React.FC = () => {
   const [userToReject, setUserToReject] = useState<{ uid: string; name: string } | null>(null);
 
   useEffect(() => {
-    if (!profile || !['manager', 'admin'].includes(profile.role) && profile.email !== 'admin@smart-management.local') return;
+    const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+    const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+    if (!profile || !isPrivileged) return;
 
     const q = query(collection(db, 'users'), where('isApproved', '==', false));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -60,6 +62,15 @@ const AccountApproval: React.FC = () => {
     const targetUser = pendingUsers.find(u => u.uid === uid);
     try {
       await deleteDoc(doc(db, 'users', uid));
+      
+      // Also clear room_registry if this user was the active one
+      if (targetUser?.roomNumber) {
+        const registryDoc = await getDoc(doc(db, 'room_registry', targetUser.roomNumber));
+        if (registryDoc.exists() && registryDoc.data().uid === uid) {
+          await deleteDoc(doc(db, 'room_registry', targetUser.roomNumber));
+        }
+      }
+
       if (user) {
         await logAction('アカウント却下', `${targetUser?.roomNumber || '不明'}号室（${name || '未設定'}）の申請を却下し削除しました`, user.uid);
       }
@@ -69,7 +80,10 @@ const AccountApproval: React.FC = () => {
     }
   };
 
-  if (!['manager', 'admin'].includes(profile?.role || '') && profile?.email !== 'admin@smart-management.local') {
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+
+  if (!isPrivileged) {
     return (
       <div className="p-12 text-center">
         <AlertCircle className="mx-auto text-rose-500 mb-4" size={48} />
@@ -123,6 +137,7 @@ const AccountApproval: React.FC = () => {
                     >
                       <option value="resident">居住者</option>
                       <option value="manager">管理人</option>
+                      <option value="admin">システム管理者</option>
                       <option value="accountant">会計</option>
                       <option value="asst_accountant">会計補佐</option>
                       <option value="asst_manager">管理補佐</option>
@@ -153,7 +168,7 @@ const AccountApproval: React.FC = () => {
               ))}
               {pendingUsers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-8 py-20 text-center text-slate-600 font-bold italic">
+                  <td colSpan={5} className="px-8 py-20 text-center text-slate-600 font-bold italic">
                     承認待ちのユーザーはいません。
                   </td>
                 </tr>

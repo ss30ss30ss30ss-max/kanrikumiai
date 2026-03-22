@@ -57,7 +57,7 @@ service cloud.firestore {
     }
 
     function isManager() {
-      return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager');
+      return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
     function isApproved() {
@@ -65,7 +65,8 @@ service cloud.firestore {
         isDefaultAdmin() || 
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true || 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager'
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
         ))
       );
     }
@@ -86,7 +87,7 @@ service cloud.firestore {
       return data.keys().hasAll(['uid', 'email', 'role', 'isApproved']) &&
              data.uid is string && data.uid.size() < 128 &&
              data.email is string && data.email.size() < 256 &&
-             data.role in ['manager', 'accountant', 'asst_accountant', 'asst_manager', 'resident'] &&
+             data.role in ['manager', 'admin', 'accountant', 'asst_accountant', 'asst_manager', 'resident'] &&
              data.isApproved is bool &&
              (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
              (!('roomNumber' in data) || (data.roomNumber is string && data.roomNumber.size() < 20));
@@ -185,17 +186,22 @@ service cloud.firestore {
     }
 
     match /inquiries/{id} {
-      allow read: if isManager() || (isApproved() && resource.data.userId == request.auth.uid);
-      allow create: if isApproved() && request.resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data);
-      allow update: if isManager() || (isApproved() && resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data));
+      allow read: if isAuthenticated() && (isManager() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data);
+      allow update: if isAuthenticated() && (isManager() || (resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data)));
       allow delete: if isManager();
 
       match /messages/{messageId} {
-        allow read: if isManager() || (isApproved() && get(/databases/$(database)/documents/inquiries/$(id)).data.userId == request.auth.uid);
-        allow create: if (isManager() || (isApproved() && get(/databases/$(database)/documents/inquiries/$(id)).data.userId == request.auth.uid)) && 
+        allow read: if isAuthenticated() && (isManager() || get(/databases/$(database)/documents/inquiries/$(id)).data.userId == request.auth.uid);
+        allow create: if isAuthenticated() && (isManager() || get(/databases/$(database)/documents/inquiries/$(id)).data.userId == request.auth.uid) && 
                       request.resource.data.senderId == request.auth.uid &&
                       isValidInquiryMessage(request.resource.data);
       }
+    }
+
+    match /room_registry/{roomNumber} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

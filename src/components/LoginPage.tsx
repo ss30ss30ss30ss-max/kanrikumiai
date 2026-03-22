@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,22 +78,18 @@ const LoginPage: React.FC = () => {
     if (sanitizedCode === '880818') {
       const adminEmail = 'admin@smart-management.local';
       try {
-        // Log in as a master admin account
-        // We use a fixed email for the master admin
         const adminPassword = 'admin_password_880818';
-        
         try {
           const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
           await logAction('ログイン', 'システム管理者としてログインしました', userCredential.user.uid);
         } catch (err: any) {
-          // If admin account doesn't exist, create it (first time setup)
           if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
             const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
             await setDoc(doc(db, 'users', userCredential.user.uid), {
               uid: userCredential.user.uid,
               email: adminEmail,
               name: 'システム管理者',
-              role: 'manager',
+              role: 'admin',
               isApproved: true,
               createdAt: new Date().toISOString(),
             });
@@ -103,11 +99,11 @@ const LoginPage: React.FC = () => {
             throw err;
           }
         }
-    } catch (err: any) {
-      const errorMsg = '管理者認証に失敗しました: ' + err.message;
-      setError(errorMsg);
-      await logAction('ログイン失敗', errorMsg, 'unauthenticated', adminEmail);
-    }
+      } catch (err: any) {
+        const errorMsg = '管理者認証に失敗しました: ' + err.message;
+        setError(errorMsg);
+        await logAction('ログイン失敗', errorMsg, 'unauthenticated', adminEmail);
+      }
     } else {
       setError('無効な管理者コードです');
     }
@@ -120,16 +116,34 @@ const LoginPage: React.FC = () => {
     setError('');
 
     const sanitizedRoom = toHalfWidth(roomNumber);
-    const dummyEmail = `room_${sanitizedRoom}@smart-management.local`;
+    let email = '';
 
     try {
       if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, dummyEmail, password);
-        await logAction('ログイン', `${sanitizedRoom}号室としてログインしました`, userCredential.user.uid);
+        if (sanitizedRoom.includes('@')) {
+          email = sanitizedRoom;
+        } else {
+          // Try to find the email in room_registry
+          const registryDoc = await getDoc(doc(db, 'room_registry', sanitizedRoom));
+          if (registryDoc.exists()) {
+            email = registryDoc.data().email;
+          } else {
+            // Fallback to old format
+            email = `room_${sanitizedRoom}@smart-management.local`;
+          }
+        }
+
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        await logAction('ログイン', `${sanitizedRoom}としてログインしました`, userCredential.user.uid);
       } else {
+        // Registration
+        const uniqueId = Math.random().toString(36).substring(2, 10);
+        const dummyEmail = `room_${sanitizedRoom}_${uniqueId}@smart-management.local`;
+        
         const userCredential = await createUserWithEmailAndPassword(auth, dummyEmail, password);
         const user = userCredential.user;
         
+        // Create user profile
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: dummyEmail,
@@ -141,6 +155,14 @@ const LoginPage: React.FC = () => {
           isApproved: false,
           createdAt: new Date().toISOString(),
         });
+
+        // Update room registry
+        await setDoc(doc(db, 'room_registry', sanitizedRoom), {
+          email: dummyEmail,
+          uid: user.uid,
+          updatedAt: new Date().toISOString()
+        });
+
         await logAction('利用申請', `${sanitizedRoom}号室の利用申請が行われました`, user.uid);
         setSuccess(true);
       }
@@ -158,7 +180,7 @@ const LoginPage: React.FC = () => {
         errorMsg = 'エラーが発生しました: ' + err.message;
       }
       setError(errorMsg);
-      await logAction('ログイン失敗', `${sanitizedRoom}号室: ${errorMsg}`, 'unauthenticated', dummyEmail);
+      await logAction('ログイン失敗', `${sanitizedRoom}号室: ${errorMsg}`, 'unauthenticated', email || 'unknown');
     } finally {
       setLoading(false);
     }

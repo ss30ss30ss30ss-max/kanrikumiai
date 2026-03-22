@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, arrayUnion } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, arrayUnion, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Announcement, CalendarEvent, AccountingRecord } from '../types';
-import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings, FileText, Sparkles, MessageSquare } from 'lucide-react';
+import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings, FileText, Sparkles, MessageSquare, UserCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const QuickAction = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick: () => void }) => (
@@ -18,6 +18,7 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [records, setRecords] = useState<AccountingRecord[]>([]);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     if (!profile) return;
@@ -43,10 +44,25 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
       handleFirestoreError(error, 'list' as any, 'accounting');
     });
 
+    // Pending approval count for privileged users
+    const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+    const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+    
+    let unsubscribeApproval: (() => void) | null = null;
+    if (isPrivileged) {
+      const qApproval = query(collection(db, 'users'), where('isApproved', '==', false));
+      unsubscribeApproval = onSnapshot(qApproval, (snapshot) => {
+        setPendingApprovalCount(snapshot.docs.length);
+      }, (error) => {
+        console.warn('Pending approval count error:', error.message);
+      });
+    }
+
     return () => {
       unsubscribeAnnouncements();
       unsubscribeEvents();
       unsubscribeRecords();
+      if (unsubscribeApproval) unsubscribeApproval();
     };
   }, [profile]);
 
@@ -69,7 +85,12 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
     }
   };
 
-  const roleLabel = profile?.role === 'manager' ? '管理者' : 
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+  const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
+
+  const roleLabel = isMasterAdmin ? 'マスター管理者' :
+                    profile?.role === 'manager' ? '管理者' : 
                     profile?.role === 'accountant' ? '会計' : 
                     profile?.role === 'asst_accountant' ? '会計補佐' :
                     profile?.role === 'asst_manager' ? '管理補佐' : '一般居住者';
@@ -105,16 +126,34 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
         </div>
 
         {/* Quick Actions */}
-        <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-5 gap-6">
+        <div className={`md:col-span-12 grid grid-cols-2 ${isPrivileged ? 'md:grid-cols-4 lg:grid-cols-7' : 'md:grid-cols-5'} gap-6`}>
           <QuickAction icon={<Users className="text-indigo-400" size={20}/>} label="名簿確認" onClick={() => setActiveTab('members')} />
           <QuickAction icon={<Bell className="text-orange-400" size={20}/>} label="お知らせ" onClick={() => setActiveTab('announcements')} />
           <QuickAction 
             icon={<MessageSquare className="text-rose-400" size={20}/>} 
             label="問い合わせ" 
-            onClick={() => setActiveTab(profile?.role === 'manager' || profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com' ? 'admin' : 'inquiries')} 
+            onClick={() => setActiveTab('inquiries')} 
           />
           <QuickAction icon={<CreditCard className="text-emerald-400" size={20}/>} label="会計・決算" onClick={() => setActiveTab('accounting')} />
-          {profile?.role === 'manager' && <QuickAction icon={<Settings className="text-slate-400" size={20}/>} label="システム設定" onClick={() => setActiveTab('admin')} />}
+          
+          {isPrivileged && (
+            <>
+              <QuickAction icon={<FileText className="text-blue-400" size={20}/>} label="配布用文書" onClick={() => setActiveTab('documents')} />
+              <QuickAction 
+                icon={
+                  <div className="relative">
+                    <UserCheck className="text-amber-400" size={20}/>
+                    {pendingApprovalCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+                    )}
+                  </div>
+                } 
+                label="アカウント承認" 
+                onClick={() => setActiveTab('approval')} 
+              />
+              <QuickAction icon={<Settings className="text-slate-400" size={20}/>} label="システム設定" onClick={() => setActiveTab('admin')} />
+            </>
+          )}
         </div>
       </div>
 

@@ -15,6 +15,9 @@ const BulletinBoard: React.FC = () => {
   const [newPost, setNewPost] = useState({ title: '', content: '' });
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({});
 
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isManager = profile?.role === 'manager' || profile?.role === 'asst_manager' || profile?.role === 'accountant' || profile?.role === 'asst_accountant' || isMasterAdmin;
+
   useEffect(() => {
     const q = query(collection(db, 'bulletin_posts'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -177,7 +180,7 @@ const BulletinBoard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                {(user?.uid === post.authorUid || profile?.role === 'manager') && (
+                {(user?.uid === post.authorUid || isManager) && (
                   <button
                     onClick={() => handleDeletePost(post.id)}
                     className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-all"
