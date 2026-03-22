@@ -3,12 +3,13 @@ import { collection, onSnapshot, query, addDoc, deleteDoc, doc, updateDoc, order
 import { db } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { DistributionDocument } from '../types';
-import { FileText, Plus, Download, Trash2, Edit2, FileCheck, AlertTriangle, Users, Save, Eye, X } from 'lucide-react';
+import { FileText, Plus, Download, Trash2, Edit2, FileCheck, AlertTriangle, Users, Save, Eye, X, Sparkles, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import ConfirmModal from './ConfirmModal';
+import { GoogleGenAI } from "@google/genai";
 
 const templates = [
   { 
@@ -57,6 +58,8 @@ const DocumentCreator: React.FC = () => {
   });
   
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
 
   useEffect(() => {
     if (!profile) return;
@@ -156,20 +159,40 @@ const DocumentCreator: React.FC = () => {
         logging: false,
         useCORS: true,
         onclone: (clonedDoc) => {
+          // Force light mode on the cloned document to avoid oklab/oklch issues
+          clonedDoc.documentElement.style.colorScheme = 'light';
+          clonedDoc.body.style.colorScheme = 'light';
+
           const style = clonedDoc.createElement('style');
           style.innerHTML = `
+            * {
+              color-scheme: light !important;
+            }
+            #doc-preview-${docData.id}, #doc-preview-${docData.id} * {
+              color-scheme: light !important;
+              background-color: transparent !important;
+              background-image: none !important;
+              color: #000000 !important;
+              box-shadow: none !important;
+              text-shadow: none !important;
+              border-color: #000000 !important;
+              transition: none !important;
+              animation: none !important;
+              filter: none !important;
+              outline: none !important;
+              mask: none !important;
+              -webkit-mask: none !important;
+            }
             #doc-preview-${docData.id} {
               background-color: #ffffff !important;
-              color: #000000 !important;
               padding: 60px !important;
               width: 800px !important;
               margin: 0 !important;
               font-family: "MS Mincho", "Hiragino Mincho ProN", serif !important;
             }
-            #doc-preview-${docData.id} * {
-              color: #000000 !important;
-              background-color: transparent !important;
-              box-shadow: none !important;
+            #doc-preview-${docData.id} svg {
+              stroke: #000000 !important;
+              fill: none !important;
             }
             .pdf-title {
               font-size: 24pt !important;
@@ -219,10 +242,60 @@ const DocumentCreator: React.FC = () => {
     }
   };
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt) return;
+    setIsAiGenerating(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `マンション管理組合の配布用文書を作成してください。
+テーマ: ${aiPrompt}
+テンプレートタイプ: ${formData.template}
+宛先: ${formData.recipient}
+差出人: ${formData.sender}
+
+以下の形式で出力してください：
+【タイトル】
+（ここにタイトル）
+【本文】
+（ここに本文。Markdown形式で、箇条書きなどを使って分かりやすく）`,
+        config: {
+          systemInstruction: "あなたはプロのマンション管理人です。丁寧で分かりやすく、かつ正式な文書を作成します。余計な挨拶や解説は省き、指定された形式のみを出力してください。",
+        }
+      });
+
+      const text = response.text;
+      if (text) {
+        const titleMatch = text.match(/【タイトル】\n([\s\S]*?)\n【本文】/);
+        const contentMatch = text.match(/【本文】\n([\s\S]*)/);
+        
+        if (titleMatch && contentMatch) {
+          setFormData({
+            ...formData,
+            title: titleMatch[1].trim(),
+            content: contentMatch[1].trim()
+          });
+        } else {
+          // Fallback if regex fails
+          setFormData({
+            ...formData,
+            content: text
+          });
+        }
+      }
+      setAiPrompt('');
+    } catch (error) {
+      console.error("AI Generation error:", error);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
   const isManager = profile?.role === 'manager' || profile?.role === 'asst_manager';
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-white tracking-tighter flex items-center gap-3">
@@ -373,7 +446,34 @@ const DocumentCreator: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-6 md:p-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Form */}
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-[2rem] space-y-4">
+                      <div className="flex items-center gap-2 text-indigo-400 font-black text-xs uppercase tracking-widest">
+                        <Sparkles size={16} />
+                        AIアシスタント
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="例：駐輪場のマナー改善について..." 
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 text-xs text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                        />
+                        <button 
+                          type="button"
+                          onClick={handleAiGenerate}
+                          disabled={isAiGenerating || !aiPrompt}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all flex items-center gap-2"
+                        >
+                          {isAiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                          生成
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-medium">テーマを入力して「生成」を押すと、AIがタイトルと本文を提案します。</p>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">テンプレート選択</label>
                       <div className="grid grid-cols-3 gap-3">
@@ -468,6 +568,7 @@ const DocumentCreator: React.FC = () => {
                       </button>
                     </div>
                   </form>
+                </div>
 
                   {/* Live Preview Card */}
                   <div className="hidden lg:block">

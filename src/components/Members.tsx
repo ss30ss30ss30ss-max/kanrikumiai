@@ -87,11 +87,11 @@ const Members: React.FC = () => {
   const isPrivileged = profile && ['manager', 'accountant', 'asst_manager'].includes(profile.role);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-white">居住者名簿</h2>
-          <p className="text-slate-500 mt-2 font-medium">マンションの居住者情報を確認できます。役員のみ詳細情報にアクセス可能です。</p>
+          <p className="text-slate-500 mt-2 font-medium">マンションの居住者情報を確認できます。</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
           <div className="relative group w-full md:w-80">
@@ -272,7 +272,7 @@ const Members: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl"
+              className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-black text-white flex items-center gap-3">

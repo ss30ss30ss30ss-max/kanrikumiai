@@ -76,10 +76,10 @@ const LoginPage: React.FC = () => {
     
     const sanitizedCode = toHalfWidth(adminCode);
     if (sanitizedCode === '880818') {
+      const adminEmail = 'admin@smart-management.local';
       try {
         // Log in as a master admin account
         // We use a fixed email for the master admin
-        const adminEmail = 'admin@smart-management.local';
         const adminPassword = 'admin_password_880818';
         
         try {
@@ -103,9 +103,11 @@ const LoginPage: React.FC = () => {
             throw err;
           }
         }
-      } catch (err: any) {
-        setError('管理者認証に失敗しました: ' + err.message);
-      }
+    } catch (err: any) {
+      const errorMsg = '管理者認証に失敗しました: ' + err.message;
+      setError(errorMsg);
+      await logAction('ログイン失敗', errorMsg, 'unauthenticated', adminEmail);
+    }
     } else {
       setError('無効な管理者コードです');
     }
@@ -143,17 +145,20 @@ const LoginPage: React.FC = () => {
         setSuccess(true);
       }
     } catch (err: any) {
+      let errorMsg = '';
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('室番号またはパスワードが正しくありません。');
+        errorMsg = '部屋番号またはパスワードが正しくありません。';
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('この室番号は既に登録されています。');
+        errorMsg = 'この部屋番号は既に登録されています。';
       } else if (err.code === 'auth/weak-password') {
-        setError('パスワードが短すぎます。6文字以上で設定してください。');
+        errorMsg = 'パスワードが短すぎます。6文字以上で設定してください。';
       } else if (err.code === 'auth/network-request-failed') {
-        setError('ネットワークエラーが発生しました。接続を確認してください。');
+        errorMsg = 'ネットワークエラーが発生しました。接続を確認してください。';
       } else {
-        setError('エラーが発生しました: ' + err.message);
+        errorMsg = 'エラーが発生しました: ' + err.message;
       }
+      setError(errorMsg);
+      await logAction('ログイン失敗', `${sanitizedRoom}号室: ${errorMsg}`, 'unauthenticated', dummyEmail);
     } finally {
       setLoading(false);
     }
@@ -206,7 +211,7 @@ const LoginPage: React.FC = () => {
               <input 
                 type="text" 
                 required 
-                placeholder="室番号" 
+                placeholder="部屋番号" 
                 className="w-full h-14 pl-11 pr-4 bg-slate-800/40 border border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-white transition-all" 
                 value={roomNumber} 
                 onChange={(e) => setRoomNumber(toHalfWidth(e.target.value))} 

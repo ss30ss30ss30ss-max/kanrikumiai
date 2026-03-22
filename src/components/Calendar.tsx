@@ -10,7 +10,7 @@ import { ja } from 'date-fns/locale';
 import ConfirmModal from './ConfirmModal';
 
 const Calendar: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, handleFirestoreError } = useAuth();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,7 +28,9 @@ const Calendar: React.FC = () => {
     if (!profile) return;
     const unsub = onSnapshot(collection(db, 'calendar_events'), (snap) => {
       setEvents(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CalendarEvent)));
-    }, (err) => console.error("Calendar fetch error:", err));
+    }, (err) => {
+      handleFirestoreError(err, 'list' as any, 'calendar_events');
+    });
     return unsub;
   }, [profile]);
 
@@ -91,7 +93,7 @@ const Calendar: React.FC = () => {
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-white">カレンダー</h2>
@@ -196,7 +198,7 @@ const Calendar: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl"
+              className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-black text-white">

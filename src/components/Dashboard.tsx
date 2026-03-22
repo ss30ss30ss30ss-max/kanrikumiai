@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Announcement, CalendarEvent, AccountingRecord } from '../types';
-import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings, FileText } from 'lucide-react';
+import { Bell, Calendar as CalendarIcon, CreditCard, Users, LayoutDashboard, Building2, Settings, FileText, Sparkles, MessageSquare } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const QuickAction = ({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick: () => void }) => (
@@ -14,7 +14,7 @@ const QuickAction = ({ icon, label, onClick }: { icon: React.ReactNode, label: s
 );
 
 const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTab }) => {
-  const { profile } = useAuth();
+  const { profile, handleFirestoreError } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [records, setRecords] = useState<AccountingRecord[]>([]);
@@ -25,16 +25,22 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
     const qAnnouncements = query(collection(db, 'announcements'), orderBy('date', 'desc'), limit(3));
     const unsubscribeAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
       setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
+    }, (error) => {
+      handleFirestoreError(error, 'list' as any, 'announcements');
     });
 
     const qEvents = query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'), limit(3));
     const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
       setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CalendarEvent)));
+    }, (error) => {
+      handleFirestoreError(error, 'list' as any, 'calendar_events');
     });
 
     const qRecords = query(collection(db, 'accounting'), orderBy('date', 'desc'), limit(5));
     const unsubscribeRecords = onSnapshot(qRecords, (snapshot) => {
       setRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccountingRecord)));
+    }, (error) => {
+      handleFirestoreError(error, 'list' as any, 'accounting');
     });
 
     return () => {
@@ -44,13 +50,32 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
     };
   }, [profile]);
 
+  const unreadAnnouncements = announcements.filter(a => !a.readBy?.includes(profile?.uid || ''));
+
+  const handleMarkAsRead = async (announcement: Announcement) => {
+    if (!profile || announcement.readBy?.includes(profile.uid)) {
+      setActiveTab('announcements');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'announcements', announcement.id), {
+        readBy: arrayUnion(profile.uid)
+      });
+      setActiveTab('announcements');
+    } catch (error) {
+      console.error("Error marking as read:", error);
+      setActiveTab('announcements');
+    }
+  };
+
   const roleLabel = profile?.role === 'manager' ? '管理者' : 
                     profile?.role === 'accountant' ? '会計' : 
                     profile?.role === 'asst_accountant' ? '会計補佐' :
                     profile?.role === 'asst_manager' ? '管理補佐' : '一般居住者';
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Hero Section */}
         <div className="md:col-span-8 bg-gradient-to-br from-indigo-600 to-indigo-900 rounded-[2.5rem] p-8 md:p-12 border border-indigo-500/20 shadow-2xl relative overflow-hidden group">
@@ -60,7 +85,7 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
             <span className="inline-block px-4 py-1.5 bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10 mb-6 backdrop-blur-md">マンション管理ポータル</span>
             <h2 className="text-4xl md:text-5xl font-black text-white mb-8 leading-tight tracking-tighter">おかえりなさい、<br className="hidden sm:block"/>{profile?.name || 'ユーザー'}様。</h2>
             <div className="flex flex-wrap gap-3 mt-auto">
-              <div className="px-5 py-2.5 bg-slate-950/40 rounded-2xl text-xs font-black border border-white/5 backdrop-blur-md text-indigo-200">{profile?.roomNumber || '---'}号室</div>
+              <div className="px-5 py-2.5 bg-slate-950/40 rounded-2xl text-xs font-black border border-white/5 backdrop-blur-md text-indigo-200">{profile?.roomNumber || '---'}部屋番号</div>
               <div className="px-5 py-2.5 bg-slate-950/40 rounded-2xl text-xs font-black border border-white/5 backdrop-blur-md text-indigo-200">駐車場: {profile?.parking || '無'}</div>
               <div className="px-5 py-2.5 bg-white text-slate-900 rounded-2xl text-xs font-black shadow-xl uppercase tracking-widest">{roleLabel}</div>
             </div>
@@ -71,19 +96,25 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
         <div className="md:col-span-4 glass-card p-8 flex flex-col items-center justify-center text-center">
           <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mb-4">最新のお知らせ</p>
           <div className="text-7xl font-black text-white mb-4 tracking-tighter tabular-nums">
-            {announcements.length.toString().padStart(2, '0')}
+            {unreadAnnouncements.length.toString().padStart(2, '0')}
           </div>
           <div className="w-12 h-1.5 bg-indigo-600 rounded-full opacity-50"></div>
-          <p className="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest">未読の通知があります</p>
+          <p className="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            {unreadAnnouncements.length > 0 ? `${unreadAnnouncements.length}件の未読があります` : '未読の通知はありません'}
+          </p>
         </div>
 
         {/* Quick Actions */}
         <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-5 gap-6">
           <QuickAction icon={<Users className="text-indigo-400" size={20}/>} label="名簿確認" onClick={() => setActiveTab('members')} />
-          <QuickAction icon={<Bell className="text-orange-400" size={20}/>} label="掲示板" onClick={() => setActiveTab('announcements')} />
+          <QuickAction icon={<Bell className="text-orange-400" size={20}/>} label="お知らせ" onClick={() => setActiveTab('announcements')} />
+          <QuickAction 
+            icon={<MessageSquare className="text-rose-400" size={20}/>} 
+            label="問い合わせ" 
+            onClick={() => setActiveTab(profile?.role === 'manager' || profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com' ? 'admin' : 'inquiries')} 
+          />
           <QuickAction icon={<CreditCard className="text-emerald-400" size={20}/>} label="会計・決算" onClick={() => setActiveTab('accounting')} />
-          <QuickAction icon={<FileText className="text-blue-400" size={20}/>} label="配布用文書" onClick={() => setActiveTab('documents')} />
-          <QuickAction icon={<Settings className="text-slate-400" size={20}/>} label="システム設定" onClick={() => profile?.role === 'manager' ? setActiveTab('admin') : setActiveTab('dashboard')} />
+          {profile?.role === 'manager' && <QuickAction icon={<Settings className="text-slate-400" size={20}/>} label="システム設定" onClick={() => setActiveTab('admin')} />}
         </div>
       </div>
 
@@ -99,9 +130,22 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
           </div>
           <div className="p-6 space-y-4">
             {announcements.map(announcement => (
-              <div key={announcement.id} className="p-5 bg-slate-950/40 rounded-[1.5rem] border border-slate-800 hover:border-indigo-500/30 transition-all cursor-pointer group">
+              <div 
+                key={announcement.id} 
+                onClick={() => handleMarkAsRead(announcement)}
+                className={`p-5 rounded-[1.5rem] border transition-all cursor-pointer group ${
+                  !announcement.readBy?.includes(profile?.uid || '') 
+                  ? 'bg-indigo-500/10 border-indigo-500/30' 
+                  : 'bg-slate-950/40 border-slate-800'
+                } hover:border-indigo-500/50`}
+              >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-black text-white group-hover:text-indigo-400 transition-colors">{announcement.title}</h4>
+                  <div className="flex items-center gap-2">
+                    {!announcement.readBy?.includes(profile?.uid || '') && (
+                      <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
+                    )}
+                    <h4 className="font-black text-white group-hover:text-indigo-400 transition-colors">{announcement.title}</h4>
+                  </div>
                   <span className="text-[10px] text-slate-500 font-mono font-bold">{announcement.date}</span>
                 </div>
                 <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{announcement.content}</p>

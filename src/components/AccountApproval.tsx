@@ -79,7 +79,7 @@ const AccountApproval: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <header>
         <h2 className="text-4xl font-black tracking-tighter text-white">アカウント承認</h2>
         <p className="text-slate-500 mt-2 font-medium">新規利用申請のあった居住者のアカウントを承認します。</p>

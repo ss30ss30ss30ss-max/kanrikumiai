@@ -20,13 +20,14 @@ interface FirestoreErrorInfo {
   authInfo: any;
 }
 
-export async function logAction(action: string, details: string, uid?: string) {
+export async function logAction(action: string, details: string, uid?: string, userEmail?: string) {
   try {
-    const targetUid = uid || auth.currentUser?.uid;
-    if (!targetUid) return;
+    const targetUid = uid || auth.currentUser?.uid || 'unauthenticated';
+    const email = userEmail || auth.currentUser?.email || 'unknown';
 
     await addDoc(collection(db, 'logs'), {
       uid: targetUid,
+      email: email,
       action,
       details,
       timestamp: new Date().toISOString(),

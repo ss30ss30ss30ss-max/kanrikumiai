@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { AccountingRecord } from '../types';
-import { CreditCard, Plus, ArrowUpCircle, ArrowDownCircle, Wallet, Search, Filter, FileDown, Edit2, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, ArrowUpCircle, ArrowDownCircle, Wallet, Search, Filter, FileDown, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -24,6 +24,8 @@ const Accounting: React.FC = () => {
   const [alertMessage, setAlertMessage] = useState('');
   const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
 
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
   useEffect(() => {
     if (!profile) return;
 
@@ -36,51 +38,60 @@ const Accounting: React.FC = () => {
   }, [profile]);
 
   const handleGenerateReport = async () => {
-    const element = document.getElementById('accounting-report-area');
+    const element = document.getElementById('accounting-report-area-preview');
     if (!element) return;
 
     setIsGeneratingReport(true);
     try {
       const canvas = await html2canvas(element, {
         scale: 2,
-        backgroundColor: '#0f172a',
+        backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
         ignoreElements: (el) => el.classList.contains('no-pdf'),
         onclone: (clonedDoc) => {
-          // Add a style tag to the clone to override problematic CSS
+          // Force light mode on the cloned document to avoid oklab/oklch issues
+          clonedDoc.documentElement.style.colorScheme = 'light';
+          clonedDoc.body.style.colorScheme = 'light';
+
           const style = clonedDoc.createElement('style');
           style.innerHTML = `
             * {
+              color-scheme: light !important;
+            }
+            #accounting-report-area-preview, #accounting-report-area-preview * {
+              color-scheme: light !important;
+              background-color: transparent !important;
+              background-image: none !important;
+              color: #000000 !important;
               box-shadow: none !important;
               text-shadow: none !important;
               transition: none !important;
               animation: none !important;
-              -webkit-backdrop-filter: none !important;
               backdrop-filter: none !important;
+              -webkit-backdrop-filter: none !important;
+              filter: none !important;
+              outline: none !important;
+              mask: none !important;
+              -webkit-mask: none !important;
             }
-            /* Force hex for common problematic elements in the report */
-            .report-emerald-gradient, .report-orange-gradient {
-              box-shadow: none !important;
+            #accounting-report-area-preview {
+              background-color: #ffffff !important;
+              padding: 40px !important;
             }
+            #accounting-report-area-preview svg {
+              stroke: #000000 !important;
+              fill: none !important;
+            }
+            #accounting-report-area-preview .text-emerald-600 { color: #059669 !important; }
+            #accounting-report-area-preview .text-orange-600 { color: #ea580c !important; }
+            #accounting-report-area-preview .text-indigo-600 { color: #4f46e5 !important; }
+            #accounting-report-area-preview .bg-slate-50 { background-color: #f8fafc !important; }
+            #accounting-report-area-preview .border-slate-200 { border-color: #e2e8f0 !important; }
+            #accounting-report-area-preview .text-slate-600 { color: #475569 !important; }
+            #accounting-report-area-preview .text-slate-500 { color: #64748b !important; }
           `;
           clonedDoc.head.appendChild(style);
-
-          // Force all elements to use standard color space in the clone
-          const elements = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < elements.length; i++) {
-            const el = elements[i] as HTMLElement;
-            if (el.style) {
-              // Explicitly remove any oklch/oklab from inline styles if they exist
-              const computed = window.getComputedStyle(el);
-              if (computed.backgroundColor.includes('oklch') || computed.backgroundColor.includes('oklab')) {
-                el.style.backgroundColor = 'transparent';
-              }
-              if (computed.color.includes('oklch') || computed.color.includes('oklab')) {
-                el.style.color = '#ffffff';
-              }
-            }
-          }
         }
       });
 
@@ -93,6 +104,7 @@ const Accounting: React.FC = () => {
 
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
       pdf.save(`収支決算報告書_${new Date().toLocaleDateString('ja-JP')}.pdf`);
+      setIsPreviewOpen(false);
     } catch (error) {
       console.error("Report generation error:", error);
       setAlertMessage("決算書の作成に失敗しました。");
@@ -170,7 +182,7 @@ const Accounting: React.FC = () => {
   const isPrivileged = profile && ['manager', 'accountant'].includes(profile.role);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-white">会計管理</h2>
@@ -178,15 +190,10 @@ const Accounting: React.FC = () => {
         </div>
         {isPrivileged && (
           <button
-            onClick={handleGenerateReport}
-            disabled={isGeneratingReport}
-            className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-2xl border border-slate-700 transition-all flex items-center gap-2 font-black text-sm disabled:opacity-50"
+            onClick={() => setIsPreviewOpen(true)}
+            className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-2xl border border-slate-700 transition-all flex items-center gap-2 font-black text-sm"
           >
-            {isGeneratingReport ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <FileDown size={20} />
-            )}
+            <FileDown size={20} />
             <span>決算書作成</span>
           </button>
         )}
@@ -308,7 +315,7 @@ const Accounting: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl"
+              className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <h3 className="text-2xl font-black text-white mb-8">{editingId ? '記録を修正' : '収支を記録'}</h3>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -399,6 +406,98 @@ const Accounting: React.FC = () => {
         showCancel={false}
         variant="info"
       />
+
+      {/* Full Preview Modal */}
+      <AnimatePresence>
+        {isPreviewOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-4xl bg-white text-black p-12 md:p-20 shadow-2xl font-serif relative overflow-y-auto max-h-[95vh]"
+            >
+              <div className="flex justify-between items-center mb-12 no-pdf">
+                <h3 className="text-xl font-black text-slate-900">決算報告書プレビュー</h3>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={handleGenerateReport}
+                    disabled={isGeneratingReport}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-900/20 disabled:opacity-50"
+                  >
+                    {isGeneratingReport ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FileDown size={16} />}
+                    PDFで保存
+                  </button>
+                  <button 
+                    onClick={() => setIsPreviewOpen(false)}
+                    className="p-2.5 bg-slate-100 text-slate-900 rounded-full hover:bg-slate-200 transition-all"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div id="accounting-report-area-preview" className="space-y-12 bg-white text-black p-8">
+                <div className="text-center space-y-4">
+                  <h1 className="text-4xl font-bold underline underline-offset-8 decoration-2 text-black">収支決算報告書</h1>
+                  <p className="text-sm text-slate-600">作成日: {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-8">
+                  <div className="p-6 border-2 border-slate-200 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">総収入</p>
+                    <p className="text-2xl font-bold">¥{totalIncome.toLocaleString()}</p>
+                  </div>
+                  <div className="p-6 border-2 border-slate-200 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">総支出</p>
+                    <p className="text-2xl font-bold">¥{totalExpense.toLocaleString()}</p>
+                  </div>
+                  <div className="p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">現在の残高</p>
+                    <p className="text-2xl font-bold text-indigo-600">¥{balance.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold border-b-2 border-slate-900 pb-2">収支明細</h2>
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-300 text-xs font-bold text-slate-600">
+                        <th className="py-4 px-2">日付</th>
+                        <th className="py-4 px-2">項目</th>
+                        <th className="py-4 px-2">区分</th>
+                        <th className="py-4 px-2 text-right">金額</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {records.map(record => (
+                        <tr key={record.id} className="text-sm">
+                          <td className="py-4 px-2 font-mono">{record.date}</td>
+                          <td className="py-4 px-2 font-bold">{record.description}</td>
+                          <td className="py-4 px-2">
+                            <span className={record.type === 'income' ? 'text-emerald-600' : 'text-orange-600'}>
+                              {record.type === 'income' ? '収入' : '支出'}
+                            </span>
+                          </td>
+                          <td className={`py-4 px-2 text-right font-bold ${record.type === 'income' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                            {record.type === 'income' ? '+' : '-'}¥{record.amount.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="pt-20 text-right space-y-2">
+                  <p className="text-sm font-bold">スマートレジデンス 管理組合</p>
+                  <p className="text-xs text-slate-500">理事長：____________________ (印)</p>
+                  <p className="text-xs text-slate-500">会計：____________________ (印)</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

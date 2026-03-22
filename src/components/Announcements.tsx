@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter } from 'lucide-react';
+import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
 import { Announcement } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import ConfirmModal from './ConfirmModal';
+import { GoogleGenAI } from "@google/genai";
 
 const Announcements: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, handleFirestoreError } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [isAiFormalizing, setIsAiFormalizing] = useState<string | null>(null);
+  const [formalDoc, setFormalDoc] = useState<{ id: string, title: string, content: string, date: string } | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -52,12 +55,28 @@ const Announcements: React.FC = () => {
 
   const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager';
 
+  const markAsRead = async (annId: string) => {
+    if (!profile || !auth.currentUser) return;
+    const ann = announcements.find(a => a.id === annId);
+    if (ann && ann.readBy?.includes(auth.currentUser.uid)) return;
+
+    try {
+      await updateDoc(doc(db, 'announcements', annId), {
+        readBy: arrayUnion(auth.currentUser.uid)
+      });
+    } catch (error) {
+      handleFirestoreError(error, 'update' as any, `announcements/${annId}`);
+    }
+  };
+
   useEffect(() => {
     if (!profile) return;
     const q = query(collection(db, 'announcements'), orderBy('date', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       setAnnouncements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    }, (err) => console.error("Announcements fetch error:", err));
+    }, (err) => {
+      handleFirestoreError(err, 'list' as any, 'announcements');
+    });
     return unsub;
   }, [profile]);
 
@@ -75,43 +94,53 @@ const Announcements: React.FC = () => {
         useCORS: true,
         ignoreElements: (el) => el.classList.contains('no-pdf'),
         onclone: (clonedDoc) => {
+          // Force light mode on the cloned document to avoid oklab/oklch issues
+          clonedDoc.documentElement.style.colorScheme = 'light';
+          clonedDoc.body.style.colorScheme = 'light';
+
           // Add a style tag to the clone to override all styles for a clean white PDF
           const style = clonedDoc.createElement('style');
           style.innerHTML = `
-            #announcement-${ann.id} {
-              background-color: #ffffff !important;
-              color: #000000 !important;
-              padding: 40px !important;
-              border: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
+            * {
+              color-scheme: light !important;
             }
-            #announcement-${ann.id} * {
+            #announcement-${ann.id}, #announcement-${ann.id} * {
+              color-scheme: light !important;
               background-color: transparent !important;
+              background-image: none !important;
               color: #000000 !important;
               box-shadow: none !important;
               text-shadow: none !important;
               border-color: #dddddd !important;
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
+              transition: none !important;
+              animation: none !important;
+              filter: none !important;
+              outline: none !important;
+              mask: none !important;
+              -webkit-mask: none !important;
+            }
+            #announcement-${ann.id} {
+              background-color: #ffffff !important;
+              padding: 40px !important;
+              border: none !important;
+              border-radius: 0 !important;
+            }
+            #announcement-${ann.id} svg {
+              stroke: #000000 !important;
+              fill: none !important;
             }
             #announcement-${ann.id} h2, 
             #announcement-${ann.id} h3, 
             #announcement-${ann.id} h4 {
-              color: #000000 !important;
               font-weight: bold !important;
               border-bottom: 2px solid #000000 !important;
               padding-bottom: 10px !important;
               margin-bottom: 20px !important;
             }
             #announcement-${ann.id} .prose p {
-              color: #000000 !important;
               line-height: 1.6 !important;
-            }
-            #announcement-${ann.id} .text-slate-400,
-            #announcement-${ann.id} .text-slate-500,
-            #announcement-${ann.id} .text-indigo-400 {
-              color: #444444 !important;
             }
             /* Hide icons or decorative elements if they look bad in black/white */
             #announcement-${ann.id} .lucide {
@@ -137,6 +166,73 @@ const Announcements: React.FC = () => {
       setIsAlertOpen(true);
     } finally {
       setIsDownloading(null);
+    }
+  };
+
+  const handleFormalPDF = async (ann: Announcement) => {
+    setIsAiFormalizing(ann.id);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `以下のマンションのお知らせ内容を、元の文章の意味や文言を一切変えずに、配布用の「正式な書面形式」に構造化してください。
+タイトル、日付、差出人（管理組合）、本文、以上、といった構成にしてください。
+出力は、Markdown形式で、白背景に黒文字で印刷することを前提とした構造にしてください。
+
+お知らせ内容：
+タイトル: ${ann.title}
+日付: ${ann.date}
+内容: ${ann.content}`,
+      });
+
+      const structuredContent = response.text || ann.content;
+      setFormalDoc({
+        id: ann.id,
+        title: ann.title,
+        content: structuredContent,
+        date: ann.date
+      });
+
+      // Wait for state update and render
+      setTimeout(async () => {
+        const element = document.getElementById(`formal-announcement-${ann.id}`);
+        if (!element) {
+          setIsAiFormalizing(null);
+          return;
+        }
+
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc) => {
+            clonedDoc.documentElement.style.colorScheme = 'light';
+            clonedDoc.body.style.colorScheme = 'light';
+            const style = clonedDoc.createElement('style');
+            style.innerHTML = `
+              * { color-scheme: light !important; color: #000000 !important; background: #ffffff !important; }
+              .formal-container { padding: 60px !important; font-family: "MS Mincho", "Hiragino Mincho ProN", serif !important; }
+              .markdown-body { color: #000000 !important; line-height: 1.8 !important; }
+              .markdown-body h1 { text-align: center !important; font-size: 24px !important; margin-bottom: 40px !important; border: none !important; }
+            `;
+            clonedDoc.head.appendChild(style);
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`正式版_${ann.title}.pdf`);
+        setFormalDoc(null);
+        setIsAiFormalizing(null);
+      }, 500);
+
+    } catch (error) {
+      console.error('AI Formal PDF error:', error);
+      setIsAiFormalizing(null);
     }
   };
 
@@ -176,7 +272,7 @@ const Announcements: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-white">お知らせ</h2>
@@ -204,64 +300,80 @@ const Announcements: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 gap-6">
-        {announcements.map((ann, i) => (
-          <motion.article
-            key={ann.id}
-            id={`announcement-${ann.id}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="glass-card group overflow-hidden"
-          >
-            <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#6366f11a] border border-[#6366f133] flex items-center justify-center text-indigo-400">
-                    <Bell size={24} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon size={12} />
-                        {new Date(ann.date).toLocaleDateString('ja-JP')}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FileText size={12} />
-                        掲示物
-                      </span>
+        {announcements.map((ann, i) => {
+          const isRead = ann.readBy?.includes(auth.currentUser?.uid || '');
+          return (
+            <motion.article
+              key={ann.id}
+              id={`announcement-${ann.id}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              onViewportEnter={() => !isRead && markAsRead(ann.id)}
+              onClick={() => !isRead && markAsRead(ann.id)}
+              className={`glass-card group overflow-hidden transition-all cursor-pointer ${!isRead ? 'border-l-4 border-l-indigo-500' : ''}`}
+            >
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                      !isRead 
+                      ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/40' 
+                      : 'bg-[#6366f11a] border border-[#6366f133] text-indigo-400'
+                    }`}>
+                      <Bell size={24} />
                     </div>
-                    <h3 className="text-2xl font-black text-white mt-1 group-hover:text-indigo-400 transition-colors">{ann.title}</h3>
+                    <div>
+                      <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon size={12} />
+                          {new Date(ann.date).toLocaleDateString('ja-JP')}
+                        </span>
+                        {!isRead && (
+                          <span className="px-2 py-0.5 bg-indigo-500 text-white rounded-full text-[8px] font-black animate-pulse">NEW</span>
+                        )}
+                        {isRead && (
+                          <span className="flex items-center gap-1 text-emerald-500/60">
+                            <CheckCircle2 size={10} />
+                            既読
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-2xl font-black text-white mt-1 group-hover:text-indigo-400 transition-colors">{ann.title}</h3>
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <button onClick={() => handleDelete(ann.id)} className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-2xl transition-all border border-transparent hover:border-red-400/20 no-pdf">
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                </div>
+                <div className="prose prose-invert max-w-none text-slate-400 leading-relaxed font-medium">
+                  <ReactMarkdown>{ann.content}</ReactMarkdown>
+                </div>
+                <div className="mt-8 pt-8 border-t border-slate-800 flex items-center justify-between">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    管理組合 事務局
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => handleFormalPDF(ann)}
+                      disabled={isAiFormalizing === ann.id}
+                      className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf disabled:opacity-50"
+                    >
+                      {isAiFormalizing === ann.id ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={18} />
+                      )}
+                      <span>{isAiFormalizing === ann.id ? 'AI作成中...' : 'PDFで保存'}</span>
+                    </button>
                   </div>
                 </div>
-                {canEdit && (
-                  <button onClick={() => handleDelete(ann.id)} className="p-3 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-2xl transition-all border border-transparent hover:border-red-400/20 no-pdf">
-                    <Trash2 size={20} />
-                  </button>
-                )}
               </div>
-              <div className="prose prose-invert max-w-none text-slate-400 leading-relaxed font-medium">
-                <ReactMarkdown>{ann.content}</ReactMarkdown>
-              </div>
-              <div className="mt-8 pt-8 border-t border-slate-800 flex items-center justify-between">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  管理組合 事務局
-                </div>
-                <button 
-                  onClick={() => handleDownloadPDF(ann)}
-                  disabled={isDownloading === ann.id}
-                  className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf disabled:opacity-50"
-                >
-                  {isDownloading === ann.id ? (
-                    <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Download size={18} />
-                  )}
-                  <span>{isDownloading === ann.id ? '作成中...' : 'PDFで保存'}</span>
-                </button>
-              </div>
-            </div>
-          </motion.article>
-        ))}
+            </motion.article>
+          );
+        })}
         {announcements.length === 0 && (
           <div className="p-20 rounded-[3rem] border border-dashed border-slate-800 text-center text-slate-500 font-bold italic">
             現在、お知らせはありません。
@@ -277,7 +389,7 @@ const Announcements: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl"
+              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-3xl font-black text-white">お知らせを作成</h3>
@@ -338,6 +450,20 @@ const Announcements: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+      
+      {/* Hidden Formal Document Renderer */}
+      <div className="fixed top-[-9999px] left-[-9999px]">
+        {formalDoc && (
+          <div 
+            id={`formal-announcement-${formalDoc.id}`}
+            className="formal-container bg-white text-black w-[800px]"
+          >
+            <div className="markdown-body">
+              <ReactMarkdown>{formalDoc.content}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </div>
 
       <ConfirmModal
         isOpen={isConfirmOpen}

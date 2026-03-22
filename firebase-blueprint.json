@@ -75,6 +75,7 @@
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
+        "email": { "type": "string" },
         "action": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
         "details": { "type": "string" }
@@ -97,6 +98,66 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "date", "sender", "recipient", "content", "template", "authorUid"]
+    },
+    "BulletinPost": {
+      "title": "Bulletin Board Post",
+      "description": "Community discussion posts",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRoom": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "content": { "type": "string" },
+              "authorUid": { "type": "string" },
+              "authorName": { "type": "string" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "required": ["title", "content", "authorUid", "authorName", "createdAt"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Direct messages between residents and managers",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "unreadByManager": { "type": "boolean" },
+        "unreadByResident": { "type": "boolean" }
+      },
+      "required": ["userId", "userName", "roomNumber", "subject", "status", "createdAt"]
+    },
+    "InquiryMessage": {
+      "title": "Inquiry Message",
+      "description": "Individual messages within an inquiry thread",
+      "type": "object",
+      "properties": {
+        "inquiryId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["inquiryId", "senderId", "senderName", "content", "createdAt"]
     }
   },
   "firestore": {
@@ -106,6 +167,9 @@
     "/announcements/{id}": { "schema": "Announcement", "description": "Notices" },
     "/calendar_events/{id}": { "schema": "CalendarEvent", "description": "Schedule" },
     "/logs/{id}": { "schema": "Log", "description": "Audit logs" },
-    "/documents/{id}": { "schema": "DistributionDocument", "description": "Formal documents" }
+    "/documents/{id}": { "schema": "DistributionDocument", "description": "Formal documents" },
+    "/bulletin_posts/{id}": { "schema": "BulletinPost", "description": "Community posts" },
+    "/inquiries/{id}": { "schema": "Inquiry", "description": "Support inquiries" },
+    "/inquiries/{id}/messages/{messageId}": { "schema": "InquiryMessage", "description": "Messages in an inquiry" }
   }
 }
