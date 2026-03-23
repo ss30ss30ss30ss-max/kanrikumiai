@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, onSnapshot, addDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
@@ -46,6 +46,7 @@ interface AuthContextType {
   showAlert: (title: string, message: string) => void;
   hideAlert: () => void;
   handleFirestoreError: (error: unknown, operationType: OperationType, path: string | null, currentUser?: User | null) => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -76,6 +77,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null, currentUser?: User | null) => {
     const errMessage = error instanceof Error ? error.message : String(error);
+    const errCode = (error as any)?.code || '';
+    
     const errInfo: FirestoreErrorInfo = {
       error: errMessage,
       authInfo: {
@@ -89,12 +92,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.error('Firestore Error: ', JSON.stringify(errInfo));
 
     // Show user-friendly Japanese message for common errors
-    if (errMessage.includes('permission-denied') || errMessage.includes('insufficient permissions')) {
+    if (errMessage.includes('permission-denied') || errMessage.includes('insufficient permissions') || errCode === 'permission-denied') {
       showAlert('アクセス拒否', '権限が不足しています。この操作を行うことはできません。');
-    } else if (errMessage.includes('quota-exceeded')) {
+    } else if (errMessage.includes('quota-exceeded') || errCode === 'quota-exceeded') {
       showAlert('制限超過', '利用制限（クォータ）を超えました。明日までお待ちください。');
     } else if (errMessage.includes('offline')) {
       showAlert('接続エラー', 'ネットワーク接続を確認してください。オフラインの可能性があります。');
+    } else {
+      showAlert('エラー', `エラーが発生しました: ${errMessage}`);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout Error:', error);
     }
   };
 
@@ -152,7 +165,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       alert: alertState, 
       showAlert, 
       hideAlert,
-      handleFirestoreError
+      handleFirestoreError,
+      logout
     }}>
       {children}
     </AuthContext.Provider>

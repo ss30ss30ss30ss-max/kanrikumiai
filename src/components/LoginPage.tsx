@@ -77,32 +77,42 @@ const LoginPage: React.FC = () => {
     const sanitizedCode = toHalfWidth(adminCode);
     if (sanitizedCode === '880818') {
       const adminEmail = 'admin@smart-management.local';
+      const adminPassword = 'admin_password_880818';
       try {
-        const adminPassword = 'admin_password_880818';
         try {
           const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
           await logAction('ログイン', 'システム管理者としてログインしました', userCredential.user.uid);
         } catch (err: any) {
-          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-            const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
-            await setDoc(doc(db, 'users', userCredential.user.uid), {
-              uid: userCredential.user.uid,
-              email: adminEmail,
-              name: 'システム管理者',
-              role: 'admin',
-              isApproved: true,
-              createdAt: new Date().toISOString(),
-            });
-            await logAction('アカウント作成', 'システム管理者が初期作成されました', userCredential.user.uid);
-            await logAction('ログイン', 'システム管理者として初回ログインしました', userCredential.user.uid);
+          // If user doesn't exist, create it
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+            try {
+              const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+              await setDoc(doc(db, 'users', userCredential.user.uid), {
+                uid: userCredential.user.uid,
+                email: adminEmail,
+                name: 'システム管理者',
+                role: 'admin',
+                isApproved: true,
+                createdAt: new Date().toISOString(),
+              });
+              await logAction('アカウント作成', 'システム管理者が初期作成されました', userCredential.user.uid);
+              await logAction('ログイン', 'システム管理者として初回ログインしました', userCredential.user.uid);
+            } catch (createErr: any) {
+              // If creation fails because email already in use, it means password was wrong
+              if (createErr.code === 'auth/email-already-in-use') {
+                throw new Error('管理者アカウントのパスワードが一致しません。システム管理者に確認してください。');
+              }
+              throw createErr;
+            }
           } else {
             throw err;
           }
         }
       } catch (err: any) {
-        const errorMsg = '管理者認証に失敗しました: ' + err.message;
+        const errorMsg = '管理者認証に失敗しました: ' + (err.message || err.code);
         setError(errorMsg);
         await logAction('ログイン失敗', errorMsg, 'unauthenticated', adminEmail);
+        handleFirestoreError(err, 'write' as any, 'admin_login');
       }
     } else {
       setError('無効な管理者コードです');
