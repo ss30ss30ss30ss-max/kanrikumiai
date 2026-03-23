@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter, CheckCircle2, Loader2 } from 'lucide-react';
 import { Announcement } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import ConfirmModal from './ConfirmModal';
-import { GoogleGenAI } from "@google/genai";
 
 const Announcements: React.FC = () => {
   const { profile, handleFirestoreError } = useAuth();
@@ -18,8 +17,6 @@ const Announcements: React.FC = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
-  const [isAiFormalizing, setIsAiFormalizing] = useState<string | null>(null);
-  const [formalDoc, setFormalDoc] = useState<{ id: string, title: string, content: string, date: string } | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -82,84 +79,62 @@ const Announcements: React.FC = () => {
   }, [profile]);
 
   const handleDownloadPDF = async (ann: Announcement) => {
-    const element = document.getElementById(`announcement-${ann.id}`);
-    if (!element) return;
-
     setIsDownloading(ann.id);
     try {
-      // Generate PDF with white background and black text
-      const canvas = await html2canvas(element, {
+      // Create a hidden container for PDF generation
+      const printContainer = document.createElement('div');
+      printContainer.id = `pdf-print-${ann.id}`;
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-9999px';
+      printContainer.style.top = '0';
+      printContainer.style.width = '800px';
+      printContainer.style.backgroundColor = '#ffffff';
+      printContainer.style.color = '#000000';
+      printContainer.style.padding = '60px';
+      printContainer.style.fontFamily = '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif';
+      
+      printContainer.innerHTML = `
+        <div style="text-align: right; margin-bottom: 20px; font-size: 12pt;">
+          ${new Date(ann.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+        <div style="margin-bottom: 40px; font-size: 14pt; font-weight: bold;">
+          居住者各位
+        </div>
+        <div style="text-align: right; margin-bottom: 60px; font-size: 12pt;">
+          マンション管理組合 理事会
+        </div>
+        <div style="text-align: center; margin-bottom: 60px; font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">
+          ${ann.title}
+        </div>
+        <div style="font-size: 12pt; line-height: 2.0; white-space: pre-wrap; min-height: 400px; margin-bottom: 60px;">
+          ${ann.content}
+        </div>
+        <div style="margin-top: 60px; border-top: 1px solid #000000; padding-top: 20px; text-align: right; font-size: 10pt;">
+          お問い合わせ：管理事務室
+        </div>
+      `;
+      
+      document.body.appendChild(printContainer);
+
+      const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
-        logging: false,
         useCORS: true,
-        ignoreElements: (el) => el.classList.contains('no-pdf'),
-        onclone: (clonedDoc) => {
-          // Force light mode on the cloned document to avoid oklab/oklch issues
-          clonedDoc.documentElement.style.colorScheme = 'light';
-          clonedDoc.body.style.colorScheme = 'light';
-
-          // Add a style tag to the clone to override all styles for a clean white PDF
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * {
-              color-scheme: light !important;
-            }
-            #announcement-${ann.id}, #announcement-${ann.id} * {
-              color-scheme: light !important;
-              background-color: transparent !important;
-              background-image: none !important;
-              color: #000000 !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-              border-color: #dddddd !important;
-              backdrop-filter: none !important;
-              -webkit-backdrop-filter: none !important;
-              transition: none !important;
-              animation: none !important;
-              filter: none !important;
-              outline: none !important;
-              mask: none !important;
-              -webkit-mask: none !important;
-            }
-            #announcement-${ann.id} {
-              background-color: #ffffff !important;
-              padding: 40px !important;
-              border: none !important;
-              border-radius: 0 !important;
-            }
-            #announcement-${ann.id} svg {
-              stroke: #000000 !important;
-              fill: none !important;
-            }
-            #announcement-${ann.id} h2, 
-            #announcement-${ann.id} h3, 
-            #announcement-${ann.id} h4 {
-              font-weight: bold !important;
-              border-bottom: 2px solid #000000 !important;
-              padding-bottom: 10px !important;
-              margin-bottom: 20px !important;
-            }
-            #announcement-${ann.id} .prose p {
-              line-height: 1.6 !important;
-            }
-            /* Hide icons or decorative elements if they look bad in black/white */
-            #announcement-${ann.id} .lucide {
-              opacity: 0.7 !important;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-        }
       });
+
+      document.body.removeChild(printContainer);
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [canvas.width / 2, canvas.height / 2]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`お知らせ_${ann.title}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
@@ -167,73 +142,6 @@ const Announcements: React.FC = () => {
       setIsAlertOpen(true);
     } finally {
       setIsDownloading(null);
-    }
-  };
-
-  const handleFormalPDF = async (ann: Announcement) => {
-    setIsAiFormalizing(ann.id);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `以下のマンションのお知らせ内容を、元の文章の意味や文言を一切変えずに、配布用の「正式な書面形式」に構造化してください。
-タイトル、日付、差出人（管理組合）、本文、以上、といった構成にしてください。
-出力は、Markdown形式で、白背景に黒文字で印刷することを前提とした構造にしてください。
-
-お知らせ内容：
-タイトル: ${ann.title}
-日付: ${ann.date}
-内容: ${ann.content}`,
-      });
-
-      const structuredContent = response.text || ann.content;
-      setFormalDoc({
-        id: ann.id,
-        title: ann.title,
-        content: structuredContent,
-        date: ann.date
-      });
-
-      // Wait for state update and render
-      setTimeout(async () => {
-        const element = document.getElementById(`formal-announcement-${ann.id}`);
-        if (!element) {
-          setIsAiFormalizing(null);
-          return;
-        }
-
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          onclone: (clonedDoc) => {
-            clonedDoc.documentElement.style.colorScheme = 'light';
-            clonedDoc.body.style.colorScheme = 'light';
-            const style = clonedDoc.createElement('style');
-            style.innerHTML = `
-              * { color-scheme: light !important; color: #000000 !important; background: #ffffff !important; }
-              .formal-container { padding: 60px !important; font-family: "MS Mincho", "Hiragino Mincho ProN", serif !important; }
-              .markdown-body { color: #000000 !important; line-height: 1.8 !important; }
-              .markdown-body h1 { text-align: center !important; font-size: 24px !important; margin-bottom: 40px !important; border: none !important; }
-            `;
-            clonedDoc.head.appendChild(style);
-          }
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`正式版_${ann.title}.pdf`);
-        setFormalDoc(null);
-        setIsAiFormalizing(null);
-      }, 500);
-
-    } catch (error) {
-      console.error('AI Formal PDF error:', error);
-      setIsAiFormalizing(null);
     }
   };
 
@@ -358,16 +266,16 @@ const Announcements: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <button 
-                      onClick={() => handleFormalPDF(ann)}
-                      disabled={isAiFormalizing === ann.id}
+                      onClick={() => handleDownloadPDF(ann)}
+                      disabled={isDownloading === ann.id}
                       className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf disabled:opacity-50"
                     >
-                      {isAiFormalizing === ann.id ? (
+                      {isDownloading === ann.id ? (
                         <Loader2 size={18} className="animate-spin" />
                       ) : (
-                        <Sparkles size={18} />
+                        <Download size={18} />
                       )}
-                      <span>{isAiFormalizing === ann.id ? 'AI作成中...' : 'PDFで保存'}</span>
+                      <span>{isDownloading === ann.id ? '作成中...' : 'PDFで保存'}</span>
                     </button>
                   </div>
                 </div>
@@ -452,19 +360,7 @@ const Announcements: React.FC = () => {
         )}
       </AnimatePresence>
       
-      {/* Hidden Formal Document Renderer */}
-      <div className="fixed top-[-9999px] left-[-9999px]">
-        {formalDoc && (
-          <div 
-            id={`formal-announcement-${formalDoc.id}`}
-            className="formal-container bg-white text-black w-[800px]"
-          >
-            <div className="markdown-body">
-              <ReactMarkdown>{formalDoc.content}</ReactMarkdown>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Hidden Formal Document Renderer - Removed */}
 
       <ConfirmModal
         isOpen={isConfirmOpen}

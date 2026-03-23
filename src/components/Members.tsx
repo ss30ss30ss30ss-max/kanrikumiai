@@ -6,12 +6,15 @@ import { Member } from '../types';
 import { Search, Phone, Car, Check, Clock, ShieldAlert, UserPlus, Trash2, X, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 const Members: React.FC = () => {
   const { profile, handleFirestoreError } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
   const [newMember, setNewMember] = useState<Partial<Member>>({
@@ -37,21 +40,121 @@ const Members: React.FC = () => {
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
   const isPrivileged = profile && (['manager', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
 
+  const handleDownloadPDF = async () => {
+    try {
+      // Create a hidden container for PDF generation
+      const printContainer = document.createElement('div');
+      printContainer.id = `pdf-print-members`;
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-9999px';
+      printContainer.style.top = '0';
+      printContainer.style.width = '800px';
+      printContainer.style.backgroundColor = '#ffffff';
+      printContainer.style.color = '#000000';
+      printContainer.style.padding = '60px';
+      printContainer.style.fontFamily = '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif';
+      
+      const reportDate = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      
+      printContainer.innerHTML = `
+        <div style="text-align: center; margin-bottom: 40px;">
+          <h1 style="font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">居住者名簿</h1>
+          <p style="font-size: 10pt; margin-top: 10px;">作成日: ${reportDate}</p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000; background-color: #f0f0f0;">
+              <th style="text-align: left; padding: 10px; border: 1px solid #000;">部屋番号</th>
+              <th style="text-align: left; padding: 10px; border: 1px solid #000;">氏名</th>
+              <th style="text-align: left; padding: 10px; border: 1px solid #000;">役職</th>
+              <th style="text-align: left; padding: 10px; border: 1px solid #000;">駐車場</th>
+              ${isPrivileged ? '<th style="text-align: left; padding: 10px; border: 1px solid #000;">電話番号</th>' : ''}
+              ${isPrivileged ? '<th style="text-align: left; padding: 10px; border: 1px solid #000;">状況</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredMembers.map((member: any) => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #000;">${member.roomNumber || '---'}</td>
+                <td style="padding: 10px; border: 1px solid #000; font-weight: bold;">${member.name || '未設定'}</td>
+                <td style="padding: 10px; border: 1px solid #000;">${member.position || '居住者'}</td>
+                <td style="padding: 10px; border: 1px solid #000;">${member.parkingNumber || '無'}</td>
+                ${isPrivileged ? `<td style="padding: 10px; border: 1px solid #000;">${member.phone || '---'}</td>` : ''}
+                ${isPrivileged ? `<td style="padding: 10px; border: 1px solid #000;">${member.paymentStatus === 'paid' ? '納入済' : '未納'}</td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 40px; text-align: right; font-size: 9pt; color: #666;">
+          スマートレジデンス 管理組合
+        </div>
+      `;
+      
+      document.body.appendChild(printContainer);
+
+      const canvas = await html2canvas(printContainer, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+      });
+
+      document.body.removeChild(printContainer);
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('居住者名簿.pdf');
+    } catch (error) {
+      console.error('PDF export error:', error);
+    }
+  };
+
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMember.roomNumber || !newMember.name) return;
 
     try {
-      const memberId = newMember.roomNumber;
-      await setDoc(doc(db, 'members', memberId), {
-        ...newMember,
-        updatedAt: new Date().toISOString()
-      });
+      if (editingMember) {
+        await updateDoc(doc(db, 'members', editingMember.id), {
+          ...newMember,
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        const memberId = newMember.roomNumber;
+        await setDoc(doc(db, 'members', memberId), {
+          ...newMember,
+          updatedAt: new Date().toISOString()
+        });
+      }
       setShowAddModal(false);
+      setEditingMember(null);
       setNewMember({ roomNumber: '', name: '', parkingNumber: '', phone: '', position: '居住者', paymentStatus: 'unpaid' });
     } catch (err) {
-      console.error("Add member error:", err);
+      console.error("Save member error:", err);
     }
+  };
+
+  const handleEditMember = (member: Member) => {
+    setEditingMember(member);
+    setNewMember({
+      roomNumber: member.roomNumber,
+      name: member.name,
+      parkingNumber: member.parkingNumber,
+      phone: member.phone,
+      position: member.position,
+      paymentStatus: member.paymentStatus
+    });
+    setShowAddModal(true);
   };
 
   const handleDeleteMember = (id: string) => {
@@ -106,17 +209,29 @@ const Members: React.FC = () => {
             />
           </div>
           {isPrivileged && (
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="h-12 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95"
-            >
-              <Plus size={18} /> 新規追加
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleDownloadPDF}
+                className="h-12 px-6 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black flex items-center justify-center gap-2 border border-slate-700 transition-all active:scale-95"
+              >
+                PDF出力
+              </button>
+              <button 
+                onClick={() => {
+                  setEditingMember(null);
+                  setNewMember({ roomNumber: '', name: '', parkingNumber: '', phone: '', position: '居住者', paymentStatus: 'unpaid' });
+                  setShowAddModal(true);
+                }}
+                className="h-12 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95"
+              >
+                <Plus size={18} /> 新規追加
+              </button>
+            </div>
           )}
         </div>
       </header>
 
-      <div className="glass-card overflow-hidden">
+      <div id="members-table-container" className="glass-card overflow-hidden">
         {/* Desktop Table View */}
         <div className="hidden md:block overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
@@ -185,12 +300,20 @@ const Members: React.FC = () => {
                   )}
                   {isPrivileged && (
                     <td className="px-8 py-6 text-right">
-                      <button 
-                        onClick={() => handleDeleteMember(member.id)}
-                        className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => handleEditMember(member)}
+                          className="p-2 text-slate-600 hover:text-indigo-400 transition-colors"
+                        >
+                          <Plus size={18} className="rotate-45" /> {/* Using Plus rotated as an edit icon placeholder or just use a real icon if imported */}
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteMember(member.id)}
+                          className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -278,9 +401,12 @@ const Members: React.FC = () => {
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-black text-white flex items-center gap-3">
                   <UserPlus className="text-indigo-500" />
-                  居住者登録
+                  {editingMember ? '居住者編集' : '居住者登録'}
                 </h3>
-                <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
+                <button onClick={() => {
+                  setShowAddModal(false);
+                  setEditingMember(null);
+                }} className="p-2 text-slate-500 hover:text-white transition-colors">
                   <X size={24} />
                 </button>
               </div>
@@ -350,7 +476,7 @@ const Members: React.FC = () => {
                 </div>
 
                 <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black shadow-lg shadow-indigo-900/20 transition-all active:scale-95 mt-4">
-                  登録する
+                  {editingMember ? '更新する' : '登録する'}
                 </button>
               </form>
             </motion.div>

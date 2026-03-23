@@ -41,72 +41,98 @@ const Accounting: React.FC = () => {
   }, [profile]);
 
   const handleGenerateReport = async () => {
-    const element = document.getElementById('accounting-report-area-preview');
-    if (!element) return;
-
     setIsGeneratingReport(true);
     try {
-      const canvas = await html2canvas(element, {
+      // Create a hidden container for PDF generation
+      const printContainer = document.createElement('div');
+      printContainer.id = `pdf-print-accounting`;
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-9999px';
+      printContainer.style.top = '0';
+      printContainer.style.width = '800px';
+      printContainer.style.backgroundColor = '#ffffff';
+      printContainer.style.color = '#000000';
+      printContainer.style.padding = '60px';
+      printContainer.style.fontFamily = '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif';
+      
+      const reportDate = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+      
+      printContainer.innerHTML = `
+        <div style="text-align: center; margin-bottom: 40px;">
+          <h1 style="font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">収支決算報告書</h1>
+          <p style="font-size: 10pt; margin-top: 10px;">作成日: ${reportDate}</p>
+        </div>
+
+        <div style="margin-bottom: 40px; display: flex; justify-content: space-between; border: 1px solid #000; padding: 20px;">
+          <div style="text-align: center; flex: 1;">
+            <div style="font-size: 10pt; font-weight: bold;">総収入</div>
+            <div style="font-size: 16pt; font-weight: bold;">¥${totalIncome.toLocaleString()}</div>
+          </div>
+          <div style="text-align: center; flex: 1; border-left: 1px solid #000; border-right: 1px solid #000;">
+            <div style="font-size: 10pt; font-weight: bold;">総支出</div>
+            <div style="font-size: 16pt; font-weight: bold;">¥${totalExpense.toLocaleString()}</div>
+          </div>
+          <div style="text-align: center; flex: 1;">
+            <div style="font-size: 10pt; font-weight: bold;">現在の残高</div>
+            <div style="font-size: 16pt; font-weight: bold;">¥${balance.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px; font-size: 14pt; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 5px;">
+          収支明細
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+          <thead>
+            <tr style="border-bottom: 1px solid #000;">
+              <th style="text-align: left; padding: 10px;">日付</th>
+              <th style="text-align: left; padding: 10px;">項目</th>
+              <th style="text-align: left; padding: 10px;">区分</th>
+              <th style="text-align: right; padding: 10px;">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${records.map(record => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">${record.date}</td>
+                <td style="padding: 10px;">${record.description}</td>
+                <td style="padding: 10px;">${record.type === 'income' ? '収入' : '支出'}</td>
+                <td style="padding: 10px; text-align: right; font-weight: bold;">
+                  ${record.type === 'income' ? '+' : '-'}¥${record.amount.toLocaleString()}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 80px; text-align: right; font-size: 11pt;">
+          <p style="margin-bottom: 10px;">スマートレジデンス 管理組合</p>
+          <p>理事長：____________________ (印)</p>
+          <p style="margin-top: 10px;">会計：____________________ (印)</p>
+        </div>
+      `;
+      
+      document.body.appendChild(printContainer);
+
+      const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
-        logging: false,
         useCORS: true,
-        ignoreElements: (el) => el.classList.contains('no-pdf'),
-        onclone: (clonedDoc) => {
-          // Force light mode on the cloned document to avoid oklab/oklch issues
-          clonedDoc.documentElement.style.colorScheme = 'light';
-          clonedDoc.body.style.colorScheme = 'light';
-
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * {
-              color-scheme: light !important;
-              font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
-            }
-            #accounting-report-area-preview, #accounting-report-area-preview * {
-              color-scheme: light !important;
-              background-color: transparent !important;
-              background-image: none !important;
-              color: #000000 !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-              transition: none !important;
-              animation: none !important;
-              backdrop-filter: none !important;
-              -webkit-backdrop-filter: none !important;
-              filter: none !important;
-              outline: none !important;
-              mask: none !important;
-              -webkit-mask: none !important;
-            }
-            #accounting-report-area-preview {
-              background-color: #ffffff !important;
-              padding: 40px !important;
-            }
-            #accounting-report-area-preview svg {
-              stroke: #000000 !important;
-              fill: none !important;
-            }
-            #accounting-report-area-preview .text-emerald-600 { color: #059669 !important; }
-            #accounting-report-area-preview .text-orange-600 { color: #ea580c !important; }
-            #accounting-report-area-preview .text-indigo-600 { color: #4f46e5 !important; }
-            #accounting-report-area-preview .bg-slate-50 { background-color: #f8fafc !important; }
-            #accounting-report-area-preview .border-slate-200 { border-color: #e2e8f0 !important; }
-            #accounting-report-area-preview .text-slate-600 { color: #475569 !important; }
-            #accounting-report-area-preview .text-slate-500 { color: #64748b !important; }
-          `;
-          clonedDoc.head.appendChild(style);
-        }
       });
+
+      document.body.removeChild(printContainer);
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [canvas.width / 2, canvas.height / 2]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`収支決算報告書_${new Date().toLocaleDateString('ja-JP')}.pdf`);
       setIsPreviewOpen(false);
     } catch (error) {

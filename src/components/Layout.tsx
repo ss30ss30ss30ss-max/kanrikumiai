@@ -3,9 +3,8 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { Announcement } from '../types';
-import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, Sparkles, MessageSquare } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import AIConcierge from './AIConcierge';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -122,7 +121,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             onClick={() => setActiveTab('inquiries')} 
           />
           <PCNavBtn icon={<Calendar size={20}/>} label="カレンダー" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
-          <PCNavBtn icon={<Sparkles size={20} className="text-indigo-400" />} label="AIコンシェルジュ" active={false} onClick={() => window.dispatchEvent(new CustomEvent('open-ai-concierge'))} />
           
           {isPrivileged && (
             <>
@@ -243,10 +241,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           </>
         )}
         
-        <MobileNavBtn icon={<Sparkles size={20} className="text-indigo-400" />} active={false} onClick={() => window.dispatchEvent(new CustomEvent('open-ai-concierge'))} />
         {isManager && <MobileNavBtn icon={<Settings size={20}/>} active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />}
       </nav>
-      <AIConcierge />
     </div>
   );
 };

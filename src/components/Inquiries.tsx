@@ -264,16 +264,19 @@ const Inquiries: React.FC = () => {
       </div>
 
       {/* Main Content: Chat Area */}
-      <div className={`flex-1 flex flex-col bg-slate-950/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden ${!selectedInquiry ? 'hidden lg:flex' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col bg-slate-950/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden ${!selectedInquiry ? 'hidden lg:flex' : 'flex'} relative`}>
         {selectedInquiry ? (
           <>
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/20 backdrop-blur-md sticky top-0 z-10">
               <div className="flex items-center gap-4">
-                <button onClick={() => setSelectedInquiry(null)} className="lg:hidden w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400">
+                <button 
+                  onClick={() => setSelectedInquiry(null)} 
+                  className="lg:hidden w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400 hover:text-white transition-all"
+                >
                   <ChevronRight className="rotate-180" size={20} />
                 </button>
                 <div>
-                  <h3 className="text-lg font-black text-white">{selectedInquiry.subject}</h3>
+                  <h3 className="text-lg font-black text-white line-clamp-1">{selectedInquiry.subject}</h3>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{selectedInquiry.roomNumber} {selectedInquiry.userName}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${selectedInquiry.status === 'open' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
@@ -288,7 +291,7 @@ const Inquiries: React.FC = () => {
                   className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedInquiry.status === 'open' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
                 >
                   {selectedInquiry.status === 'open' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                  {selectedInquiry.status === 'open' ? '完了にする' : '再開する'}
+                  <span className="hidden sm:inline">{selectedInquiry.status === 'open' ? '完了にする' : '再開する'}</span>
                 </button>
               )}
             </div>

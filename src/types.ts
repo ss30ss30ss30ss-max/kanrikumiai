@@ -13,6 +13,7 @@ export interface UserProfile {
 }
 
 export interface Member {
+  id: string;
   roomNumber: string;
   parkingNumber?: string;
   name: string;

@@ -5,7 +5,6 @@ import { useAuth, logAction } from '../AuthContext';
 import { DistributionDocument } from '../types';
 import { FileText, Plus, Download, Trash2, Edit2, FileCheck, AlertTriangle, Users, Save, Eye, X, Loader2, FileDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import ConfirmModal from './ConfirmModal';
@@ -146,92 +145,64 @@ const DocumentCreator: React.FC = () => {
   };
 
   const handleDownloadPDF = async (docData: DistributionDocument) => {
-    const element = document.getElementById(`doc-preview-${docData.id}`);
-    if (!element) return;
-
     setIsGenerating(docData.id);
     try {
-      const canvas = await html2canvas(element, {
+      // Create a hidden container for PDF generation
+      const printContainer = document.createElement('div');
+      printContainer.id = `pdf-print-${docData.id}`;
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-9999px';
+      printContainer.style.top = '0';
+      printContainer.style.width = '800px';
+      printContainer.style.backgroundColor = '#ffffff';
+      printContainer.style.color = '#000000';
+      printContainer.style.padding = '60px';
+      printContainer.style.fontFamily = '"Hiragino Kaku Gothic ProN", "Meiryo", sans-serif';
+      
+      printContainer.innerHTML = `
+        <div style="text-align: right; margin-bottom: 20px; font-size: 12pt;">
+          ${docData.date}
+        </div>
+        <div style="margin-bottom: 40px; font-size: 14pt; font-weight: bold;">
+          ${docData.recipient} 様
+        </div>
+        <div style="text-align: right; margin-bottom: 60px; font-size: 12pt;">
+          ${docData.sender}
+        </div>
+        <div style="text-align: center; margin-bottom: 60px; font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">
+          ${docData.title}
+        </div>
+        <div style="font-size: 12pt; line-height: 2.0; white-space: pre-wrap; min-height: 400px; margin-bottom: 60px;">
+          ${docData.content}
+        </div>
+        ${docData.footer ? `
+          <div style="margin-top: 60px; border-top: 1px solid #000000; padding-top: 20px; text-align: right; font-size: 10pt;">
+            ${docData.footer}
+          </div>
+        ` : ''}
+      `;
+      
+      document.body.appendChild(printContainer);
+
+      const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
-        logging: false,
         useCORS: true,
-        onclone: (clonedDoc) => {
-          // Force light mode on the cloned document to avoid oklab/oklch issues
-          clonedDoc.documentElement.style.colorScheme = 'light';
-          clonedDoc.body.style.colorScheme = 'light';
-
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            * {
-              color-scheme: light !important;
-              font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif !important;
-            }
-            #doc-preview-${docData.id}, #doc-preview-${docData.id} * {
-              color-scheme: light !important;
-              background-color: transparent !important;
-              background-image: none !important;
-              color: #000000 !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-              border-color: #000000 !important;
-              transition: none !important;
-              animation: none !important;
-              filter: none !important;
-              outline: none !important;
-              mask: none !important;
-              -webkit-mask: none !important;
-            }
-            #doc-preview-${docData.id} {
-              background-color: #ffffff !important;
-              padding: 60px !important;
-              width: 800px !important;
-              margin: 0 !important;
-            }
-            #doc-preview-${docData.id} svg {
-              stroke: #000000 !important;
-              fill: none !important;
-            }
-            .pdf-title {
-              font-size: 24pt !important;
-              text-align: center !important;
-              margin: 40px 0 !important;
-              font-weight: bold !important;
-              text-decoration: underline !important;
-              text-underline-offset: 10px !important;
-            }
-            .pdf-meta {
-              display: flex !important;
-              justify-content: space-between !important;
-              margin-bottom: 40px !important;
-              font-size: 12pt !important;
-            }
-            .pdf-content {
-              font-size: 12pt !important;
-              line-height: 1.8 !important;
-              min-height: 400px !important;
-              white-space: pre-wrap !important;
-            }
-            .pdf-footer {
-              margin-top: 60px !important;
-              border-top: 1px solid #000000 !important;
-              padding-top: 20px !important;
-              text-align: right !important;
-              font-size: 10pt !important;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-        }
       });
+
+      document.body.removeChild(printContainer);
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [canvas.width / 2, canvas.height / 2]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`配布文書_${docData.title}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
