@@ -187,8 +187,12 @@ const DocumentCreator: React.FC = () => {
       // Wait for a bit to ensure rendering
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      // Ensure we are at the top for better capture
+      window.scrollTo(0, 0);
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const canvas = await html2canvas(printContainer, {
-        scale: 2,
+        scale: isMobile ? 1.5 : 2,
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
@@ -209,7 +213,19 @@ const DocumentCreator: React.FC = () => {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-      pdf.save(`配布文書_${docData.title}.pdf`);
+      
+      // Use a more robust download method for mobile/iframes
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `配布文書_${docData.title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setIsPreviewOpen(false);
     } catch (error) {
       console.error("PDF generation error:", error);
       alert("PDFの作成に失敗しました。ブラウザの設定や通信状況を確認してください。");
