@@ -58,6 +58,7 @@ const AuthContext = createContext<AuthContextType>({
   showAlert: () => {},
   hideAlert: () => {},
   handleFirestoreError: () => {},
+  logout: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

@@ -7,6 +7,7 @@ import { MessageSquare, Plus, Trash2, Send, User, Clock, MessageCircle } from 'l
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import ConfirmModal from './ConfirmModal';
 
 const BulletinBoard: React.FC = () => {
   const { profile, user, handleFirestoreError } = useAuth();
@@ -14,6 +15,8 @@ const BulletinBoard: React.FC = () => {
   const [isAddingPost, setIsAddingPost] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', content: '' });
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({});
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
   const isManager = profile?.role === 'manager' || profile?.role === 'asst_manager' || profile?.role === 'accountant' || profile?.role === 'asst_accountant' || isMasterAdmin;
@@ -54,10 +57,16 @@ const BulletinBoard: React.FC = () => {
     }
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (!window.confirm('この投稿を削除しますか？')) return;
+  const handleDeletePost = (postId: string) => {
+    setPostToDelete(postId);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDeletePost = async () => {
+    if (!postToDelete) return;
     try {
-      await deleteDoc(doc(db, 'bulletin_posts', postId));
+      await deleteDoc(doc(db, 'bulletin_posts', postToDelete));
+      setPostToDelete(null);
     } catch (error) {
       console.error("Error deleting post:", error);
     }
@@ -236,6 +245,19 @@ const BulletinBoard: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setPostToDelete(null);
+        }}
+        onConfirm={confirmDeletePost}
+        title="投稿の削除"
+        message="この投稿を削除しますか？この操作は取り消せません。"
+        confirmText="削除する"
+        variant="danger"
+      />
     </div>
   );
 };

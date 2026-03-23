@@ -4,6 +4,7 @@ import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { MessageSquare, Send, CheckCircle2, Clock, User, Building2, ChevronRight, Search, Filter, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ConfirmModal from './ConfirmModal';
 
 interface Inquiry {
   id: string;
@@ -39,6 +40,8 @@ const Inquiries: React.FC = () => {
   const [isNewInquiryModalOpen, setIsNewInquiryModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('all');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [inquiryToDelete, setInquiryToDelete] = useState<Inquiry | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
@@ -188,15 +191,21 @@ const Inquiries: React.FC = () => {
     }
   };
 
-  const handleDeleteInquiry = async (inquiry: Inquiry) => {
-    if (!window.confirm(`問い合わせ「${inquiry.subject}」を削除しますか？`)) return;
+  const handleDeleteInquiry = (inquiry: Inquiry) => {
+    setInquiryToDelete(inquiry);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDeleteInquiry = async () => {
+    if (!inquiryToDelete) return;
     
     try {
-      await deleteDoc(doc(db, 'inquiries', inquiry.id));
-      if (selectedInquiry?.id === inquiry.id) {
+      await deleteDoc(doc(db, 'inquiries', inquiryToDelete.id));
+      if (selectedInquiry?.id === inquiryToDelete.id) {
         setSelectedInquiry(null);
       }
-      await logAction('問い合わせ削除', `問い合わせ「${inquiry.subject}」を削除しました`, auth.currentUser?.uid || '');
+      await logAction('問い合わせ削除', `問い合わせ「${inquiryToDelete.subject}」を削除しました`, auth.currentUser?.uid || '');
+      setInquiryToDelete(null);
     } catch (error) {
       handleFirestoreError(error, 'delete' as any, 'inquiries');
     }
@@ -435,6 +444,19 @@ const Inquiries: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setInquiryToDelete(null);
+        }}
+        onConfirm={confirmDeleteInquiry}
+        title="問い合わせの削除"
+        message={`問い合わせ「${inquiryToDelete?.subject}」を削除しますか？この操作は取り消せません。`}
+        confirmText="削除する"
+        variant="danger"
+      />
     </div>
   );
 };

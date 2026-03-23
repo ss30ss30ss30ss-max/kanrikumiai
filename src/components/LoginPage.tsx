@@ -112,7 +112,11 @@ const LoginPage: React.FC = () => {
         const errorMsg = '管理者認証に失敗しました: ' + (err.message || err.code);
         setError(errorMsg);
         await logAction('ログイン失敗', errorMsg, 'unauthenticated', adminEmail);
-        handleFirestoreError(err, 'write' as any, 'admin_login');
+        
+        // Only call handleFirestoreError if it's actually a Firestore error
+        if (err.code && !err.code.startsWith('auth/')) {
+          handleFirestoreError(err, 'write' as any, 'admin_login');
+        }
       }
     } else {
       setError('無効な管理者コードです');

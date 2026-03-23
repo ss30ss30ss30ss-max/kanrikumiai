@@ -8,7 +8,7 @@ import { AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
 
 const AccountApproval: React.FC = () => {
-  const { profile, user, handleFirestoreError } = useAuth();
+  const { profile, user, handleFirestoreError, showAlert } = useAuth();
   const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, string>>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -64,7 +64,7 @@ const AccountApproval: React.FC = () => {
     // Check if target user is a master admin
     const isTargetMasterAdmin = targetUser?.email === 'admin@smart-management.local' || targetUser?.email === 'ss30ss30ss30ss@gmail.com';
     if (isTargetMasterAdmin) {
-      alert("システム管理アカウントは削除できません。");
+      showAlert("削除不可", "システム管理アカウントは削除できません。");
       setIsConfirmOpen(false);
       setUserToReject(null);
       return;

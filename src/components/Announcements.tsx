@@ -117,48 +117,57 @@ const Announcements: React.FC = () => {
       
       document.body.appendChild(printContainer);
       
-      // Wait for a bit to ensure rendering
-      await new Promise(resolve => setTimeout(resolve, 500));
+      try {
+        // Wait for a bit to ensure rendering
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Ensure we are at the top for better capture
-      window.scrollTo(0, 0);
+        // Ensure we are at the top for better capture
+        window.scrollTo(0, 0);
 
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const canvas = await html2canvas(printContainer, {
-        scale: isMobile ? 1.5 : 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        allowTaint: true
-      });
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const canvas = await html2canvas(printContainer, {
+          scale: isMobile ? 1.5 : 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          allowTaint: true
+        });
 
-      document.body.removeChild(printContainer);
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-      
-      // Use a more robust download method for mobile/iframes
-      const blob = pdf.output('blob');
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `お知らせ_${ann.title}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      setPreviewAnnouncement(null);
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+        
+        // Use a more robust download method for mobile/iframes
+        const blob = pdf.output('blob');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `お知らせ_${ann.title}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup link
+        setTimeout(() => {
+          if (link.parentNode) link.parentNode.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        setPreviewAnnouncement(null);
+      } finally {
+        // Always remove the print container
+        if (printContainer.parentNode) {
+          printContainer.parentNode.removeChild(printContainer);
+        }
+      }
     } catch (error) {
       console.error("PDF generation error:", error);
       setAlertMessage("PDFの作成に失敗しました。ブラウザの設定や通信状況を確認してください。");

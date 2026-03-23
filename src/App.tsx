@@ -77,7 +77,8 @@ const AppContent: React.FC = () => {
     return <LoginPage />;
   }
 
-  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isMasterAdmin = (profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com') || 
+                        (user?.email === 'admin@smart-management.local' || user?.email === 'ss30ss30ss30ss@gmail.com');
   const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
   if (profile && !profile.isApproved && profile.role !== 'manager' && !isMasterAdmin) {
     return <ApprovalPending />;
