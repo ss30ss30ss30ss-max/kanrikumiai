@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteD
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { AccountingRecord } from '../types';
-import { CreditCard, Plus, ArrowUpCircle, ArrowDownCircle, Wallet, Search, Filter, FileDown, Edit2, Trash2, X } from 'lucide-react';
+import { CreditCard, Plus, ArrowUpCircle, ArrowDownCircle, Wallet, Search, Filter, FileDown, Edit2, Trash2, X, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -25,6 +25,13 @@ const Accounting: React.FC = () => {
   const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [reportInfo, setReportInfo] = useState({
+    title: '収支決算報告書',
+    organization: 'スマートレジデンス 管理組合',
+    rep1: '理事長',
+    rep2: '会計',
+    showEdit: false
+  });
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
   const isPrivileged = profile && (['manager', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
@@ -59,7 +66,7 @@ const Accounting: React.FC = () => {
       
       printContainer.innerHTML = `
         <div style="text-align: center; margin-bottom: 40px;">
-          <h1 style="font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">収支決算報告書</h1>
+          <h1 style="font-size: 24pt; font-weight: bold; text-decoration: underline; text-underline-offset: 10px;">${reportInfo.title}</h1>
           <p style="font-size: 10pt; margin-top: 10px;">作成日: ${reportDate}</p>
         </div>
 
@@ -106,18 +113,23 @@ const Accounting: React.FC = () => {
         </table>
 
         <div style="margin-top: 80px; text-align: right; font-size: 11pt;">
-          <p style="margin-bottom: 10px;">スマートレジデンス 管理組合</p>
-          <p>理事長：____________________ (印)</p>
-          <p style="margin-top: 10px;">会計：____________________ (印)</p>
+          <p style="margin-bottom: 10px;">${reportInfo.organization}</p>
+          <p>${reportInfo.rep1}：____________________ (印)</p>
+          <p style="margin-top: 10px;">${reportInfo.rep2}：____________________ (印)</p>
         </div>
       `;
       
       document.body.appendChild(printContainer);
+      
+      // Wait for a bit to ensure rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(printContainer);
@@ -126,18 +138,19 @@ const Accounting: React.FC = () => {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`収支決算報告書_${new Date().toLocaleDateString('ja-JP')}.pdf`);
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      pdf.save(`${reportInfo.title}_${new Date().toLocaleDateString('ja-JP')}.pdf`);
       setIsPreviewOpen(false);
     } catch (error) {
       console.error("Report generation error:", error);
-      setAlertMessage("決算書の作成に失敗しました。");
+      setAlertMessage("決算書の作成に失敗しました。ブラウザの設定や通信状況を確認してください。");
       setIsAlertOpen(true);
     } finally {
       setIsGeneratingReport(false);
@@ -440,6 +453,7 @@ const Accounting: React.FC = () => {
         {isPreviewOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
             <motion.div 
+              key="accounting-preview"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -448,6 +462,17 @@ const Accounting: React.FC = () => {
               <div className="flex justify-between items-center mb-8 no-pdf sticky top-0 bg-white/80 backdrop-blur-sm py-2 z-10">
                 <h3 className="text-xl font-black text-slate-900">決算報告書プレビュー</h3>
                 <div className="flex gap-4">
+                  <button 
+                    onClick={() => setReportInfo(prev => ({ ...prev, showEdit: !prev.showEdit }))}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition-all ${
+                      reportInfo.showEdit 
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Settings size={16} />
+                    レポート設定
+                  </button>
                   <button 
                     onClick={handleGenerateReport}
                     disabled={isGeneratingReport}
@@ -465,9 +490,52 @@ const Accounting: React.FC = () => {
                 </div>
               </div>
 
+              {reportInfo.showEdit && (
+                <div className="mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-200 no-pdf space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">レポートタイトル</label>
+                      <input 
+                        type="text" 
+                        value={reportInfo.title}
+                        onChange={(e) => setReportInfo(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">団体名</label>
+                      <input 
+                        type="text" 
+                        value={reportInfo.organization}
+                        onChange={(e) => setReportInfo(prev => ({ ...prev, organization: e.target.value }))}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">役職1</label>
+                      <input 
+                        type="text" 
+                        value={reportInfo.rep1}
+                        onChange={(e) => setReportInfo(prev => ({ ...prev, rep1: e.target.value }))}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">役職2</label>
+                      <input 
+                        type="text" 
+                        value={reportInfo.rep2}
+                        onChange={(e) => setReportInfo(prev => ({ ...prev, rep2: e.target.value }))}
+                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div id="accounting-report-area-preview" className="space-y-10 bg-white text-black p-4 md:p-8">
                 <div className="text-center space-y-4">
-                  <h1 className="text-4xl font-bold underline underline-offset-8 decoration-2 text-black">収支決算報告書</h1>
+                  <h1 className="text-4xl font-bold underline underline-offset-8 decoration-2 text-black">{reportInfo.title}</h1>
                   <p className="text-sm text-slate-600">作成日: {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
 
@@ -517,9 +585,9 @@ const Accounting: React.FC = () => {
                 </div>
 
                 <div className="pt-20 text-right space-y-2">
-                  <p className="text-sm font-bold">スマートレジデンス 管理組合</p>
-                  <p className="text-xs text-slate-500">理事長：____________________ (印)</p>
-                  <p className="text-xs text-slate-500">会計：____________________ (印)</p>
+                  <p className="text-sm font-bold">{reportInfo.organization}</p>
+                  <p className="text-xs text-slate-500">{reportInfo.rep1}：____________________ (印)</p>
+                  <p className="text-xs text-slate-500">{reportInfo.rep2}：____________________ (印)</p>
                 </div>
               </div>
             </motion.div>

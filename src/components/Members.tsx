@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, doc, setDoc, deleteDoc, updateDoc, serve
 import { db, auth } from '../firebase';
 import { useAuth } from '../AuthContext';
 import { Member } from '../types';
-import { Search, Phone, Car, Check, Clock, ShieldAlert, UserPlus, Trash2, X, Plus } from 'lucide-react';
+import { Search, Phone, Car, Check, Clock, ShieldAlert, UserPlus, Trash2, X, Plus, Eye, Download, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
 import html2canvas from 'html2canvas';
@@ -17,6 +17,8 @@ const Members: React.FC = () => {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [newMember, setNewMember] = useState<Partial<Member>>({
     roomNumber: '',
     name: '',
@@ -93,11 +95,16 @@ const Members: React.FC = () => {
       `;
       
       document.body.appendChild(printContainer);
+      
+      // Wait for a bit to ensure rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(printContainer);
@@ -106,16 +113,18 @@ const Members: React.FC = () => {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save('居住者名簿.pdf');
     } catch (error) {
       console.error('PDF export error:', error);
+      alert("PDFの作成に失敗しました。ブラウザの設定や通信状況を確認してください。");
     }
   };
 
@@ -211,10 +220,10 @@ const Members: React.FC = () => {
           {isPrivileged && (
             <div className="flex gap-2">
               <button 
-                onClick={handleDownloadPDF}
+                onClick={() => setShowPreview(true)}
                 className="h-12 px-6 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black flex items-center justify-center gap-2 border border-slate-700 transition-all active:scale-95"
               >
-                PDF出力
+                <Eye size={18} /> プレビュー
               </button>
               <button 
                 onClick={() => {
@@ -479,6 +488,90 @@ const Members: React.FC = () => {
                   {editingMember ? '更新する' : '登録する'}
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPreview && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div 
+              key="members-preview"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                  <Eye className="text-indigo-500" />
+                  名簿プレビュー
+                </h3>
+                <button 
+                  onClick={() => setShowPreview(false)}
+                  className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
+                <div id="pdf-print-members-preview" className="bg-white text-black p-12 shadow-2xl mx-auto w-full max-w-[800px] min-h-[1000px] flex flex-col font-serif">
+                  <div className="text-center mb-10">
+                    <h1 className="text-3xl font-bold underline underline-offset-8">居住者名簿</h1>
+                    <p className="text-[10px] mt-4">作成日: {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  </div>
+
+                  <table className="w-full border-collapse border border-black text-[10px]">
+                    <thead>
+                      <tr className="bg-slate-100">
+                        <th className="border border-black p-2 text-left">部屋番号</th>
+                        <th className="border border-black p-2 text-left">氏名</th>
+                        <th className="border border-black p-2 text-left">役職</th>
+                        <th className="border border-black p-2 text-left">駐車場</th>
+                        {isPrivileged && <th className="border border-black p-2 text-left">電話番号</th>}
+                        {isPrivileged && <th className="border border-black p-2 text-left">状況</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMembers.map((member: any) => (
+                        <tr key={member.id}>
+                          <td className="border border-black p-2">{member.roomNumber || '---'}</td>
+                          <td className="border border-black p-2 font-bold">{member.name || '未設定'}</td>
+                          <td className="border border-black p-2">{member.position || '居住者'}</td>
+                          <td className="border border-black p-2">{member.parkingNumber || '無'}</td>
+                          {isPrivileged && <td className="border border-black p-2">{member.phone || '---'}</td>}
+                          {isPrivileged && <td className="border border-black p-2">{member.paymentStatus === 'paid' ? '納入済' : '未納'}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mt-auto pt-10 text-right text-[8px] text-slate-500">
+                    スマートレジデンス 管理組合
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-slate-800 bg-slate-900/50">
+                <button
+                  onClick={async () => {
+                    setIsGenerating(true);
+                    await handleDownloadPDF();
+                    setIsGenerating(false);
+                  }}
+                  disabled={isGenerating}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-500 transition-all disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Download size={20} />
+                  )}
+                  PDFで保存
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

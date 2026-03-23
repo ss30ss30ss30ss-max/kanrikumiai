@@ -183,11 +183,16 @@ const DocumentCreator: React.FC = () => {
       `;
       
       document.body.appendChild(printContainer);
+      
+      // Wait for a bit to ensure rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(printContainer);
@@ -196,16 +201,18 @@ const DocumentCreator: React.FC = () => {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(`配布文書_${docData.title}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
+      alert("PDFの作成に失敗しました。ブラウザの設定や通信状況を確認してください。");
     } finally {
       setIsGenerating(null);
     }
@@ -502,6 +509,7 @@ ${docData.footer || ''}
         {isPreviewOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
             <motion.div 
+              key="document-full-preview"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -555,6 +563,7 @@ ${docData.footer || ''}
         {downloadPreviewDoc && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
             <motion.div 
+              key="document-download-preview"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}

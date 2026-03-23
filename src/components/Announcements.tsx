@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth } from '../AuthContext';
-import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter, CheckCircle2, Loader2 } from 'lucide-react';
+import { Bell, Plus, Trash2, Download, FileText, Calendar as CalendarIcon, Search, Filter, CheckCircle2, Loader2, Eye, X } from 'lucide-react';
 import { Announcement } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -17,6 +17,7 @@ const Announcements: React.FC = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<Announcement | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -115,11 +116,16 @@ const Announcements: React.FC = () => {
       `;
       
       document.body.appendChild(printContainer);
+      
+      // Wait for a bit to ensure rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const canvas = await html2canvas(printContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
+        logging: false,
+        allowTaint: true
       });
 
       document.body.removeChild(printContainer);
@@ -128,17 +134,18 @@ const Announcements: React.FC = () => {
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       pdf.save(`お知らせ_${ann.title}.pdf`);
     } catch (error) {
       console.error("PDF generation error:", error);
-      setAlertMessage("PDFの作成に失敗しました。");
+      setAlertMessage("PDFの作成に失敗しました。ブラウザの設定や通信状況を確認してください。");
       setIsAlertOpen(true);
     } finally {
       setIsDownloading(null);
@@ -266,16 +273,11 @@ const Announcements: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-4">
                     <button 
-                      onClick={() => handleDownloadPDF(ann)}
-                      disabled={isDownloading === ann.id}
-                      className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf disabled:opacity-50"
+                      onClick={() => setPreviewAnnouncement(ann)}
+                      className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf"
                     >
-                      {isDownloading === ann.id ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Download size={18} />
-                      )}
-                      <span>{isDownloading === ann.id ? '作成中...' : 'PDFで保存'}</span>
+                      <Download size={18} />
+                      <span>プレビュー・保存</span>
                     </button>
                   </div>
                 </div>
@@ -361,6 +363,72 @@ const Announcements: React.FC = () => {
       </AnimatePresence>
       
       {/* Hidden Formal Document Renderer - Removed */}
+
+      <AnimatePresence>
+        {previewAnnouncement && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div 
+              key="announcement-preview"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                  <Eye className="text-indigo-500" />
+                  お知らせプレビュー
+                </h3>
+                <button 
+                  onClick={() => setPreviewAnnouncement(null)}
+                  className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
+                <div id={`ann-preview-${previewAnnouncement.id}`} className="bg-white text-black p-12 shadow-2xl mx-auto w-full max-w-[600px] min-h-[800px] flex flex-col font-serif">
+                  <div className="text-right mb-8 text-[10px]">
+                    {new Date(previewAnnouncement.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </div>
+                  <div className="mb-10 text-xs font-bold">
+                    居住者各位
+                  </div>
+                  <div className="text-right mb-12 text-xs">
+                    マンション管理組合 理事会
+                  </div>
+                  
+                  <h1 className="text-2xl font-bold text-center mb-12 underline underline-offset-8">{previewAnnouncement.title}</h1>
+                  
+                  <div className="text-sm leading-relaxed flex-1 whitespace-pre-wrap">
+                    {previewAnnouncement.content}
+                  </div>
+                  
+                  <div className="mt-12 pt-4 border-t border-black text-right text-[8px] italic">
+                    お問い合わせ：管理事務室
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-slate-800 bg-slate-900/50">
+                <button
+                  onClick={() => handleDownloadPDF(previewAnnouncement)}
+                  disabled={isDownloading === previewAnnouncement.id}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-500 transition-all disabled:opacity-50"
+                >
+                  {isDownloading === previewAnnouncement.id ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Download size={20} />
+                  )}
+                  PDFで保存
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <ConfirmModal
         isOpen={isConfirmOpen}
