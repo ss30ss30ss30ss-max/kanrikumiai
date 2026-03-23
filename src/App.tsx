@@ -78,6 +78,7 @@ const AppContent: React.FC = () => {
   }
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
   if (profile && !profile.isApproved && profile.role !== 'manager' && !isMasterAdmin) {
     return <ApprovalPending />;
   }
@@ -93,7 +94,7 @@ const AppContent: React.FC = () => {
       case 'calendar': return <Calendar />;
       case 'documents': return <DocumentCreator />;
       case 'approval': return <AccountApproval />;
-      case 'admin': return <AdminPage />;
+      case 'admin': return isManager ? <AdminPage /> : <Dashboard setActiveTab={setActiveTab} />;
       default: return <Dashboard setActiveTab={setActiveTab} />;
     }
   };

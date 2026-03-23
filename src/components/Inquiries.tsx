@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, where, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, where, serverTimestamp, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
-import { MessageSquare, Send, CheckCircle2, Clock, User, Building2, ChevronRight, Search, Filter, Plus } from 'lucide-react';
+import { MessageSquare, Send, CheckCircle2, Clock, User, Building2, ChevronRight, Search, Filter, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Inquiry {
@@ -78,9 +78,11 @@ const Inquiries: React.FC = () => {
       
       // Mark as read
       if (isManager && selectedInquiry.unreadByManager) {
-        updateDoc(doc(db, 'inquiries', selectedInquiry.id), { unreadByManager: false });
+        updateDoc(doc(db, 'inquiries', selectedInquiry.id), { unreadByManager: false })
+          .catch(err => console.error("Error marking as read (manager):", err));
       } else if (!isManager && selectedInquiry.unreadByResident) {
-        updateDoc(doc(db, 'inquiries', selectedInquiry.id), { unreadByResident: false });
+        updateDoc(doc(db, 'inquiries', selectedInquiry.id), { unreadByResident: false })
+          .catch(err => console.error("Error marking as read (resident):", err));
       }
     }, (error) => {
       handleFirestoreError(error, 'list' as any, `inquiries/${selectedInquiry.id}/messages`);
@@ -92,6 +94,15 @@ const Inquiries: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (selectedInquiry) {
+      const updatedInquiry = inquiries.find(i => i.id === selectedInquiry.id);
+      if (updatedInquiry && JSON.stringify(updatedInquiry) !== JSON.stringify(selectedInquiry)) {
+        setSelectedInquiry(updatedInquiry);
+      }
+    }
+  }, [inquiries]);
 
   const handleCreateInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +139,7 @@ const Inquiries: React.FC = () => {
       setIsNewInquiryModalOpen(false);
       setSelectedInquiry({ id: docRef.id, ...inquiryData } as Inquiry);
     } catch (error) {
-      console.error("Error creating inquiry:", error);
+      handleFirestoreError(error, 'write' as any, 'inquiries');
     }
   };
 
@@ -138,17 +149,18 @@ const Inquiries: React.FC = () => {
 
     try {
       const messageContent = newMessage;
+      const inquiryId = selectedInquiry.id;
       setNewMessage('');
 
-      await addDoc(collection(db, `inquiries/${selectedInquiry.id}/messages`), {
-        inquiryId: selectedInquiry.id,
+      await addDoc(collection(db, `inquiries/${inquiryId}/messages`), {
+        inquiryId: inquiryId,
         senderId: auth.currentUser.uid,
         senderName: profile.name || 'ユーザー',
         content: messageContent,
         createdAt: new Date().toISOString()
       });
 
-      await updateDoc(doc(db, 'inquiries', selectedInquiry.id), {
+      await updateDoc(doc(db, 'inquiries', inquiryId), {
         lastMessage: messageContent,
         lastMessageAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -156,7 +168,7 @@ const Inquiries: React.FC = () => {
         unreadByResident: isManager
       });
     } catch (error) {
-      console.error("Error sending message:", error);
+      handleFirestoreError(error, 'write' as any, `inquiries/${selectedInquiry.id}/messages`);
     }
   };
 
@@ -173,6 +185,20 @@ const Inquiries: React.FC = () => {
       await logAction('問い合わせ状態変更', `問い合わせ「${inquiry.subject}」を${newStatus === 'open' ? '再開' : '完了'}にしました`, auth.currentUser?.uid || '');
     } catch (error) {
       console.error("Error toggling status:", error);
+    }
+  };
+
+  const handleDeleteInquiry = async (inquiry: Inquiry) => {
+    if (!window.confirm(`問い合わせ「${inquiry.subject}」を削除しますか？`)) return;
+    
+    try {
+      await deleteDoc(doc(db, 'inquiries', inquiry.id));
+      if (selectedInquiry?.id === inquiry.id) {
+        setSelectedInquiry(null);
+      }
+      await logAction('問い合わせ削除', `問い合わせ「${inquiry.subject}」を削除しました`, auth.currentUser?.uid || '');
+    } catch (error) {
+      handleFirestoreError(error, 'delete' as any, 'inquiries');
     }
   };
 
@@ -286,13 +312,22 @@ const Inquiries: React.FC = () => {
                 </div>
               </div>
               {isManager && (
-                <button 
-                  onClick={() => toggleInquiryStatus(selectedInquiry)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedInquiry.status === 'open' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
-                >
-                  {selectedInquiry.status === 'open' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                  <span className="hidden sm:inline">{selectedInquiry.status === 'open' ? '完了にする' : '再開する'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => toggleInquiryStatus(selectedInquiry)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedInquiry.status === 'open' ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                  >
+                    {selectedInquiry.status === 'open' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                    <span className="hidden sm:inline">{selectedInquiry.status === 'open' ? '完了にする' : '再開する'}</span>
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteInquiry(selectedInquiry)}
+                    className="p-2 bg-rose-500/10 text-rose-400 rounded-2xl hover:bg-rose-500/20 transition-all border border-rose-500/20"
+                    title="削除"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               )}
             </div>
 

@@ -57,7 +57,7 @@ service cloud.firestore {
     }
 
     function isManager() {
-      return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+      return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['manager', 'admin', 'asst_manager', 'accountant', 'asst_accountant']));
     }
 
     function isApproved() {
@@ -65,8 +65,7 @@ service cloud.firestore {
         isDefaultAdmin() || 
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isApproved == true || 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['manager', 'admin', 'asst_manager', 'accountant', 'asst_accountant']
         ))
       );
     }
@@ -125,6 +124,19 @@ service cloud.firestore {
              data.createdAt is string;
     }
 
+    function isValidInquiryUpdate(data) {
+      return data.keys().hasAll(['userId', 'userName', 'roomNumber', 'subject', 'status', 'createdAt']) &&
+             data.userId is string && data.userName is string && data.roomNumber is string &&
+             data.subject is string && data.subject.size() < 200 &&
+             data.status in ['open', 'closed'] &&
+             data.createdAt is string &&
+             (!('lastMessage' in data) || (data.lastMessage is string && data.lastMessage.size() < 5000)) &&
+             (!('lastMessageAt' in data) || data.lastMessageAt is string) &&
+             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('unreadByManager' in data) || data.unreadByManager is bool) &&
+             (!('unreadByResident' in data) || data.unreadByResident is bool);
+    }
+
     // Rules
     match /users/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || isManager());
@@ -132,7 +144,8 @@ service cloud.firestore {
                     (request.resource.data.role == 'resident' || isDefaultAdmin());
       allow update: if (isManager() || (isAuthenticated() && request.auth.uid == uid && request.resource.data.role == resource.data.role)) &&
                     isValidUser(request.resource.data);
-      allow delete: if isManager();
+      allow delete: if isManager() && 
+                    !(resource.data.email in ["ss30ss30ss30ss@gmail.com", "admin@smart-management.local"]);
     }
 
     match /members/{roomNumber} {
@@ -188,7 +201,7 @@ service cloud.firestore {
     match /inquiries/{id} {
       allow read: if isAuthenticated() && (isManager() || resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data);
-      allow update: if isAuthenticated() && (isManager() || (resource.data.userId == request.auth.uid && isValidInquiry(request.resource.data)));
+      allow update: if isAuthenticated() && (isManager() || (resource.data.userId == request.auth.uid && isValidInquiryUpdate(request.resource.data)));
       allow delete: if isManager();
 
       match /messages/{messageId} {
@@ -196,6 +209,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && (isManager() || get(/databases/$(database)/documents/inquiries/$(id)).data.userId == request.auth.uid) && 
                       request.resource.data.senderId == request.auth.uid &&
                       isValidInquiryMessage(request.resource.data);
+        allow delete: if isManager();
       }
     }
 

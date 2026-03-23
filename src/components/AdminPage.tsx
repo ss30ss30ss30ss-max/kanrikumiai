@@ -10,7 +10,10 @@ import Inquiries from './Inquiries';
 
 const AdminPage: React.FC = () => {
   const { profile, handleFirestoreError } = useAuth();
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inquiries' | 'logs'>('users');
+  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inquiries' | 'logs'>(isMasterAdmin ? 'users' : 'inquiries');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,26 +23,29 @@ const AdminPage: React.FC = () => {
   const [alertMessage, setAlertMessage] = useState('');
   const [userToDelete, setUserToDelete] = useState<{ uid: string; name: string } | null>(null);
 
-  const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
-  const isPrivileged = profile && (['manager', 'admin'].includes(profile.role) || isMasterAdmin);
-
   useEffect(() => {
     if (!isPrivileged) return;
 
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
-    }, (err) => handleFirestoreError(err, 'get' as any, 'users', auth.currentUser));
+    let unsubUsers = () => {};
+    if (isMasterAdmin) {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+        setUsers(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
+      }, (err) => handleFirestoreError(err, 'get' as any, 'users', auth.currentUser));
+    }
 
-    const qLogs = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(50));
-    const unsubLogs = onSnapshot(qLogs, (snap) => {
-      setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog)));
-    }, (err) => handleFirestoreError(err, 'get' as any, 'logs', auth.currentUser));
+    let unsubLogs = () => {};
+    if (isMasterAdmin) {
+      const qLogs = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(50));
+      unsubLogs = onSnapshot(qLogs, (snap) => {
+        setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog)));
+      }, (err) => handleFirestoreError(err, 'get' as any, 'logs', auth.currentUser));
+    }
 
     return () => {
       unsubUsers();
       unsubLogs();
     };
-  }, [isPrivileged]);
+  }, [isPrivileged, isMasterAdmin]);
 
   const handleRoleChange = async (uid: string, role: string) => {
     const targetUser = users.find(u => u.uid === uid);
@@ -59,6 +65,15 @@ const AdminPage: React.FC = () => {
       setIsAlertOpen(true);
       return;
     }
+    
+    const targetUser = users.find(u => u.uid === uid);
+    const isTargetMasterAdmin = targetUser?.email === 'admin@smart-management.local' || targetUser?.email === 'ss30ss30ss30ss@gmail.com';
+    if (isTargetMasterAdmin) {
+      setAlertMessage('システム管理アカウントは削除できません。');
+      setIsAlertOpen(true);
+      return;
+    }
+
     setUserToDelete({ uid, name });
     setIsConfirmOpen(true);
   };
@@ -67,6 +82,15 @@ const AdminPage: React.FC = () => {
     if (!userToDelete) return;
     const { uid, name } = userToDelete;
     const targetUser = users.find(u => u.uid === uid);
+
+    const isTargetMasterAdmin = targetUser?.email === 'admin@smart-management.local' || targetUser?.email === 'ss30ss30ss30ss@gmail.com';
+    if (isTargetMasterAdmin) {
+      setAlertMessage('システム管理アカウントは削除できません。');
+      setIsAlertOpen(true);
+      setUserToDelete(null);
+      setIsConfirmOpen(false);
+      return;
+    }
 
     try {
       await deleteDoc(doc(db, 'users', uid));
@@ -122,13 +146,15 @@ const AdminPage: React.FC = () => {
           <p className="text-slate-500 mt-2 font-medium">ユーザーアカウントの承認、権限設定、および操作履歴の確認を行います。</p>
         </div>
         <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800">
-          <button 
-            onClick={() => setActiveAdminTab('users')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'users' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <ShieldCheck size={16} />
-            ユーザー管理
-          </button>
+          {isMasterAdmin && (
+            <button 
+              onClick={() => setActiveAdminTab('users')}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'users' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <ShieldCheck size={16} />
+              ユーザー管理
+            </button>
+          )}
           <button 
             onClick={() => setActiveAdminTab('inquiries')}
             className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'inquiries' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
@@ -136,13 +162,15 @@ const AdminPage: React.FC = () => {
             <MessageSquare size={16} />
             問い合わせ管理
           </button>
-          <button 
-            onClick={() => setActiveAdminTab('logs')}
-            className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'logs' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Activity size={16} />
-            システムログ
-          </button>
+          {isMasterAdmin && (
+            <button 
+              onClick={() => setActiveAdminTab('logs')}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'logs' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <Activity size={16} />
+              システムログ
+            </button>
+          )}
         </div>
       </header>
 

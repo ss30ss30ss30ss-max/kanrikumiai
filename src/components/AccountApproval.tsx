@@ -60,6 +60,16 @@ const AccountApproval: React.FC = () => {
     if (!userToReject) return;
     const { uid, name } = userToReject;
     const targetUser = pendingUsers.find(u => u.uid === uid);
+    
+    // Check if target user is a master admin
+    const isTargetMasterAdmin = targetUser?.email === 'admin@smart-management.local' || targetUser?.email === 'ss30ss30ss30ss@gmail.com';
+    if (isTargetMasterAdmin) {
+      alert("システム管理アカウントは削除できません。");
+      setIsConfirmOpen(false);
+      setUserToReject(null);
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, 'users', uid));
       
