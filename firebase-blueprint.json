@@ -99,34 +99,6 @@
       },
       "required": ["title", "date", "sender", "recipient", "content", "template", "authorUid"]
     },
-    "BulletinPost": {
-      "title": "Bulletin Board Post",
-      "description": "Community discussion posts",
-      "type": "object",
-      "properties": {
-        "title": { "type": "string" },
-        "content": { "type": "string" },
-        "authorUid": { "type": "string" },
-        "authorName": { "type": "string" },
-        "authorRoom": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "comments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "content": { "type": "string" },
-              "authorUid": { "type": "string" },
-              "authorName": { "type": "string" },
-              "createdAt": { "type": "string", "format": "date-time" }
-            }
-          }
-        }
-      },
-      "required": ["title", "content", "authorUid", "authorName", "createdAt"]
-    },
     "Inquiry": {
       "title": "Inquiry",
       "description": "Direct messages between residents and managers",
@@ -194,7 +166,6 @@
     "/calendar_events/{id}": { "schema": "CalendarEvent", "description": "Schedule" },
     "/logs/{id}": { "schema": "Log", "description": "Audit logs" },
     "/documents/{id}": { "schema": "DistributionDocument", "description": "Formal documents" },
-    "/bulletin_posts/{id}": { "schema": "BulletinPost", "description": "Community posts" },
     "/inquiries/{id}": { "schema": "Inquiry", "description": "Support inquiries" },
     "/inquiries/{id}/messages/{messageId}": { "schema": "InquiryMessage", "description": "Messages in an inquiry" },
     "/parking_reservations/{id}": { "schema": "ParkingReservation", "description": "Parking spot bookings" },

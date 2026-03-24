@@ -172,18 +172,6 @@ service cloud.firestore {
              (!('details' in data) || (data.details is string && data.details.size() < 2000));
     }
 
-    function isValidBulletinPost(data) {
-      return data.keys().hasAll(['title', 'content', 'authorUid', 'authorName', 'createdAt']) &&
-             data.title is string && data.title.size() < 200 &&
-             data.content is string && data.content.size() < 5000 &&
-             data.authorUid is string && data.authorUid.size() < 128 &&
-             data.authorName is string && data.authorName.size() < 100 &&
-             data.createdAt is string && data.createdAt.size() < 64 &&
-             (!('authorRoom' in data) || (data.authorRoom is string && data.authorRoom.size() < 20)) &&
-             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() < 64)) &&
-             (!('comments' in data) || (data.comments is list && data.comments.size() < 100));
-    }
-
     function isValidInquiry(data) {
       return data.keys().hasAll(['userId', 'userName', 'roomNumber', 'subject', 'status', 'createdAt']) &&
              data.userId is string && data.userId.size() < 128 &&
@@ -220,7 +208,7 @@ service cloud.firestore {
 
     function isValidParkingReservation(data) {
       return data.keys().hasAll(['spaceNumber', 'date', 'startTime', 'endTime', 'userId', 'userName', 'roomNumber', 'carNumber', 'createdAt']) &&
-             data.spaceNumber is int && data.spaceNumber >= 1 && data.spaceNumber <= 4 &&
+             data.spaceNumber is int && data.spaceNumber >= 7 && data.spaceNumber <= 10 &&
              data.date is string && data.date.size() < 20 &&
              data.startTime is string && data.startTime.size() < 10 &&
              data.endTime is string && data.endTime.size() < 10 &&
@@ -280,26 +268,13 @@ service cloud.firestore {
     }
 
     match /logs/{id} {
-      allow read: if isAdmin();
+      allow read, delete: if isAdmin();
       allow create: if (isAuthenticated() || (request.resource.data.action == 'ログイン失敗')) && isValidLog(request.resource.data);
     }
 
     match /documents/{id} {
       allow read: if isApproved();
       allow write: if isManager() && (request.method == 'delete' || isValidDocument(request.resource.data));
-    }
-
-    match /bulletin_posts/{id} {
-      allow read: if isApproved();
-      allow create: if isApproved() && request.resource.data.authorUid == request.auth.uid && isValidBulletinPost(request.resource.data);
-      allow update: if isApproved() && (
-        (request.resource.data.authorUid == resource.data.authorUid && isValidBulletinPost(request.resource.data)) || 
-        isManager() || 
-        // Allow anyone to add a comment
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments', 'updatedAt']) && 
-         request.resource.data.comments is list)
-      );
-      allow delete: if isApproved() && (resource.data.authorUid == request.auth.uid || isManager());
     }
 
     match /inquiries/{id} {

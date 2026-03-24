@@ -16,10 +16,10 @@ import Calendar from './components/Calendar';
 import AdminPage from './components/AdminPage';
 import AccountApproval from './components/AccountApproval';
 import DocumentCreator from './components/DocumentCreator';
-import BulletinBoard from './components/BulletinBoard';
 import Inquiries from './components/Inquiries';
 import ParkingReservation from './components/ParkingReservation';
 import MyPage from './components/MyPage';
+import GuidePage from './components/GuidePage';
 import ConfirmModal from './components/ConfirmModal';
 
 // Simple Error Boundary
@@ -95,11 +95,11 @@ const AppContent: React.FC = () => {
       case 'members': return <Members />;
       case 'accounting': return isPrivileged ? <Accounting /> : <Dashboard setActiveTab={setActiveTab} />;
       case 'announcements': return <Announcements />;
-      case 'bulletin': return <BulletinBoard />;
       case 'inquiries': return <Inquiries />;
       case 'parking': return <ParkingReservation />;
       case 'mypage': return <MyPage />;
       case 'calendar': return <Calendar />;
+      case 'guide': return <GuidePage />;
       case 'documents': return isPrivileged ? <DocumentCreator /> : <Dashboard setActiveTab={setActiveTab} />;
       case 'approval': return isManager ? <AccountApproval /> : <Dashboard setActiveTab={setActiveTab} />;
       case 'admin': return isManager ? <AdminPage /> : <Dashboard setActiveTab={setActiveTab} />;

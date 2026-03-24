@@ -17,6 +17,8 @@ const Members: React.FC = () => {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+  const [isBulkConfirmOpen, setIsBulkConfirmOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'paid' | 'unpaid'>('paid');
   const [showPreview, setShowPreview] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [newMember, setNewMember] = useState<Partial<Member>>({
@@ -218,6 +220,25 @@ const Members: React.FC = () => {
     }
   };
 
+  const handleBulkPaymentStatus = (status: 'paid' | 'unpaid') => {
+    if (!isPrivileged || members.length === 0) return;
+    setBulkStatus(status);
+    setIsBulkConfirmOpen(true);
+  };
+
+  const confirmBulkPaymentStatus = async () => {
+    try {
+      await Promise.all(members.map(m => updateDoc(doc(db, 'members', m.id), {
+        paymentStatus: bulkStatus,
+        updatedAt: new Date().toISOString()
+      })));
+      showAlert("完了", `すべての居住者を「${bulkStatus === 'paid' ? '納入済' : '未納'}」に変更しました。`);
+    } catch (err) {
+      console.error("Bulk payment status update error:", err);
+      showAlert("エラー", "一括変更に失敗しました。");
+    }
+  };
+
   const filteredMembers = members
     .filter(m => 
       (m.roomNumber?.includes(searchQuery)) || 
@@ -232,29 +253,41 @@ const Members: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-slate-900">居住者名簿</h2>
+          <h2 className="text-4xl font-black tracking-tighter text-white">居住者名簿</h2>
           <p className="text-slate-500 mt-2 font-medium">マンションの居住者情報を確認できます。</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-          <div className="relative group w-full md:w-80">
+        <div className="flex flex-col md:flex-row gap-4 w-full lg:w-auto items-start md:items-center">
+          <div className="relative group w-full md:w-64 lg:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
             <input 
               type="text" 
               placeholder="部屋・氏名・駐車場番号で検索..." 
-              className="w-full h-12 bg-white border border-slate-200 rounded-2xl pl-12 pr-6 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              className="w-full h-12 bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-6 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           {isPrivileged && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <button 
+                onClick={() => handleBulkPaymentStatus('paid')}
+                className="h-12 px-4 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-2xl font-black text-[10px] border border-emerald-500/20 transition-all active:scale-95 whitespace-nowrap"
+              >
+                すべて納入済
+              </button>
+              <button 
+                onClick={() => handleBulkPaymentStatus('unpaid')}
+                className="h-12 px-4 bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 rounded-2xl font-black text-[10px] border border-orange-500/20 transition-all active:scale-95 whitespace-nowrap"
+              >
+                すべて未納
+              </button>
               <button 
                 onClick={() => setShowPreview(true)}
-                className="h-12 px-6 bg-white hover:bg-slate-50 text-slate-900 rounded-2xl font-black flex items-center justify-center gap-2 border border-slate-200 transition-all active:scale-95"
+                className="h-12 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black flex items-center justify-center gap-2 border border-slate-700 transition-all active:scale-95 whitespace-nowrap text-[10px]"
               >
-                <Eye size={18} /> プレビュー
+                <Eye size={16} /> プレビュー
               </button>
               <button 
                 onClick={() => {
@@ -262,9 +295,9 @@ const Members: React.FC = () => {
                   setNewMember({ roomNumber: '', name: '', parkingNumber: '', phone: '', position: '居住者', paymentStatus: 'unpaid' });
                   setShowAddModal(true);
                 }}
-                className="h-12 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95"
+                className="h-12 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 transition-all active:scale-95 whitespace-nowrap text-[10px]"
               >
-                <Plus size={18} /> 新規追加
+                <Plus size={16} /> 新規追加
               </button>
             </div>
           )}
@@ -276,7 +309,7 @@ const Members: React.FC = () => {
         <div className="hidden md:block overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <tr className="bg-slate-950/50 border-b border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 <th className="px-8 py-6">部屋番号</th>
                 <th className="px-8 py-6">氏名</th>
                 {isPrivileged && <th className="px-8 py-6">役職</th>}
@@ -286,17 +319,17 @@ const Members: React.FC = () => {
                 {isPrivileged && <th className="px-8 py-6 text-right">操作</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-800/50">
               {filteredMembers.map((member: any) => (
-                <tr key={member.id} className="hover:bg-slate-50/50 transition-colors group">
+                <tr key={member.id} className="hover:bg-slate-800/30 transition-colors group">
                   <td className="px-8 py-6">
-                    <span className="inline-flex items-center justify-center px-4 py-1.5 bg-indigo-50 rounded-xl text-xs font-mono font-black text-indigo-600 border border-indigo-100">
+                    <span className="inline-flex items-center justify-center px-4 py-1.5 bg-slate-950 rounded-xl text-xs font-mono font-black text-indigo-400 border border-slate-800">
                       {member.roomNumber || '---'}
                     </span>
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-sm whitespace-nowrap group-hover:text-indigo-400 transition-colors">{member.name || '未設定'}</span>
+                      <span className="font-black text-white text-sm whitespace-nowrap group-hover:text-indigo-400 transition-colors">{member.name || '未設定'}</span>
                     </div>
                   </td>
                   {isPrivileged && (
@@ -304,7 +337,7 @@ const Members: React.FC = () => {
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                         member.position && member.position !== '居住者'
                         ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        : 'bg-slate-800 text-slate-500 border border-slate-700'
                       }`}>
                         {member.position || '居住者'}
                       </span>
@@ -312,16 +345,16 @@ const Members: React.FC = () => {
                   )}
                   {isPrivileged && (
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-2 text-indigo-600 text-sm font-bold whitespace-nowrap">
-                        <Car size={14} className="text-indigo-400" />
+                      <div className="flex items-center gap-2 text-indigo-300 text-sm font-bold whitespace-nowrap">
+                        <Car size={14} className="text-indigo-500/50" />
                         {member.parkingNumber || '無'}
                       </div>
                     </td>
                   )}
                   {isPrivileged && (
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-2 text-slate-600 text-sm font-mono font-bold whitespace-nowrap">
-                        <Phone size={14} className="text-slate-400" />
+                      <div className="flex items-center gap-2 text-slate-400 text-sm font-mono font-bold whitespace-nowrap">
+                        <Phone size={14} className="text-slate-600" />
                         {member.phone || '---'}
                       </div>
                     </td>
@@ -333,8 +366,8 @@ const Members: React.FC = () => {
                           onClick={() => togglePayment(member.id, member.paymentStatus)}
                           className={`px-5 py-2 rounded-full text-[10px] font-black tracking-tighter uppercase border transition-all flex items-center gap-2 whitespace-nowrap ${
                             member.paymentStatus === 'paid'
-                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                            : 'bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-100'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
+                            : 'bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20'
                           }`}
                         >
                           {member.paymentStatus === 'paid' ? <><Check size={12}/> 納入済</> : <><Clock size={12}/> 未納</>}
@@ -367,21 +400,21 @@ const Members: React.FC = () => {
         </div>
 
         {/* Mobile Card View */}
-        <div className="md:hidden divide-y divide-slate-100">
+        <div className="md:hidden divide-y divide-slate-800/50">
           {filteredMembers.map((member: any) => (
-            <div key={member.id} className="p-6 space-y-4 hover:bg-slate-50/50 transition-colors">
+            <div key={member.id} className="p-6 space-y-4 hover:bg-slate-800/30 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center justify-center px-3 py-1 bg-indigo-50 rounded-lg text-xs font-mono font-black text-indigo-600 border border-indigo-100">
+                  <span className="inline-flex items-center justify-center px-3 py-1 bg-slate-950 rounded-lg text-xs font-mono font-black text-indigo-400 border border-slate-800">
                     {member.roomNumber || '---'}
                   </span>
-                  <h4 className="font-black text-slate-900 text-base">{member.name || '未設定'}</h4>
+                  <h4 className="font-black text-white text-base">{member.name || '未設定'}</h4>
                 </div>
                 {isPrivileged && (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
                     member.position && member.position !== '居住者'
                     ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700'
                   }`}>
                     {member.position || '居住者'}
                   </span>
@@ -390,15 +423,15 @@ const Members: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 {isPrivileged && (
-                  <div className="flex items-center gap-2 text-slate-600 text-xs font-bold">
-                    <Car size={14} className="text-indigo-400" />
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                    <Car size={14} className="text-indigo-500/50" />
                     <span className="text-slate-500 font-medium mr-1">駐車場:</span>
-                    <span className="text-indigo-600">{member.parkingNumber || '無'}</span>
+                    <span className="text-indigo-300">{member.parkingNumber || '無'}</span>
                   </div>
                 )}
                 {isPrivileged && (
-                  <div className="flex items-center gap-2 text-slate-600 text-xs font-mono font-bold">
-                    <Phone size={14} className="text-slate-400" />
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-mono font-bold">
+                    <Phone size={14} className="text-slate-600" />
                     {member.phone || '---'}
                   </div>
                 )}
@@ -410,15 +443,15 @@ const Members: React.FC = () => {
                     onClick={() => togglePayment(member.id, member.paymentStatus)}
                     className={`flex-1 py-2.5 rounded-xl text-[10px] font-black tracking-tighter uppercase border transition-all flex items-center justify-center gap-2 ${
                       member.paymentStatus === 'paid'
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                      : 'bg-orange-50 text-orange-600 border-orange-100'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
                     }`}
                   >
                     {member.paymentStatus === 'paid' ? <><Check size={12}/> 納入済</> : <><Clock size={12}/> 未納</>}
                   </button>
                   <button 
                     onClick={() => handleDeleteMember(member.id)}
-                    className="ml-4 p-2.5 text-slate-600 hover:text-rose-500 bg-slate-50 rounded-xl border border-slate-100"
+                    className="ml-4 p-2.5 text-slate-600 hover:text-rose-500 bg-slate-950 rounded-xl border border-slate-800"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -429,7 +462,7 @@ const Members: React.FC = () => {
         </div>
         {filteredMembers.length === 0 && (
           <div className="p-24 text-center">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+            <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-800">
               <Search size={24} className="text-slate-700" />
             </div>
             <p className="text-slate-500 text-sm font-bold italic">該当する居住者が見つかりませんでした。</p>
@@ -439,22 +472,22 @@ const Members: React.FC = () => {
 
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white border border-slate-200 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
                   <UserPlus className="text-indigo-500" />
                   {editingMember ? '居住者編集' : '居住者登録'}
                 </h3>
                 <button onClick={() => {
                   setShowAddModal(false);
                   setEditingMember(null);
-                }} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                }} className="p-2 text-slate-500 hover:text-white transition-colors">
                   <X size={24} />
                 </button>
               </div>
@@ -466,7 +499,7 @@ const Members: React.FC = () => {
                     <input 
                       type="text" 
                       required 
-                      className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={newMember.roomNumber}
                       onChange={(e) => setNewMember({...newMember, roomNumber: e.target.value})}
                     />
@@ -474,7 +507,7 @@ const Members: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">駐車場番号</label>
                     <select 
-                      className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={newMember.parkingNumber}
                       onChange={(e) => setNewMember({...newMember, parkingNumber: e.target.value})}
                     >
@@ -491,7 +524,7 @@ const Members: React.FC = () => {
                   <input 
                     type="text" 
                     required 
-                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={newMember.name}
                     onChange={(e) => setNewMember({...newMember, name: e.target.value})}
                   />
@@ -500,7 +533,7 @@ const Members: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">役職</label>
                   <select 
-                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={newMember.position}
                     onChange={(e) => setNewMember({...newMember, position: e.target.value})}
                   >
@@ -517,7 +550,7 @@ const Members: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">電話番号</label>
                   <input 
                     type="tel" 
-                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-2xl px-4 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full h-12 bg-slate-950 border border-slate-800 rounded-2xl px-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={newMember.phone}
                     onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
                   />
@@ -534,28 +567,28 @@ const Members: React.FC = () => {
 
       <AnimatePresence>
         {showPreview && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
             <motion.div 
               key="members-preview"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-4xl bg-white border border-slate-200 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
+              className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <h3 className="text-2xl font-black text-white flex items-center gap-3">
                   <Eye className="text-indigo-500" />
                   名簿プレビュー
                 </h3>
                 <button 
                   onClick={() => setShowPreview(false)}
-                  className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors"
+                  className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
                 >
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
                 <div id="pdf-print-members-preview" className="bg-white text-black p-12 shadow-2xl mx-auto w-full max-w-[800px] min-h-[1000px] flex flex-col font-serif">
                   <div className="text-center mb-10">
                     <h1 className="text-3xl font-bold underline underline-offset-8">居住者名簿</h1>
@@ -593,7 +626,7 @@ const Members: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-8 border-t border-slate-100 bg-slate-50/50">
+              <div className="p-8 border-t border-slate-800 bg-slate-900/50">
                 <button
                   onClick={async () => {
                     setIsGenerating(true);
@@ -625,6 +658,16 @@ const Members: React.FC = () => {
         onConfirm={confirmDelete}
         title="居住者の削除"
         message="この居住者情報を削除してもよろしいですか？この操作は取り消せません。"
+      />
+
+      <ConfirmModal
+        isOpen={isBulkConfirmOpen}
+        onClose={() => setIsBulkConfirmOpen(false)}
+        onConfirm={confirmBulkPaymentStatus}
+        title="一括状況変更"
+        message={`すべての居住者を「${bulkStatus === 'paid' ? '納入済' : '未納'}」に変更してもよろしいですか？`}
+        confirmText="変更する"
+        variant="warning"
       />
     </div>
   );

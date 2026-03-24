@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, deleteDoc, getDoc, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { Settings, Shield, UserCheck, History, Search, Check, X, ShieldCheck, ShieldAlert, Activity, Trash2, MessageSquare } from 'lucide-react';
@@ -58,6 +58,35 @@ const AdminPage: React.FC = () => {
         setParkingSettings(docSnap.data() as ParkingSettings);
       }
     });
+
+    // Log cleanup: Delete logs older than 1 year
+    const cleanupLogs = async () => {
+      if (!isAdmin) return;
+      try {
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const oneYearAgoIso = oneYearAgo.toISOString();
+
+        const oldLogsQuery = query(
+          collection(db, 'logs'),
+          where('timestamp', '<', oneYearAgoIso)
+        );
+
+        const snapshot = await getDocs(oldLogsQuery);
+        if (snapshot.empty) return;
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        console.log(`Deleted ${snapshot.size} old logs.`);
+      } catch (error) {
+        console.error("Log cleanup error:", error);
+      }
+    };
+
+    cleanupLogs();
 
     return () => {
       unsubUsers();
@@ -128,22 +157,6 @@ const AdminPage: React.FC = () => {
       setUserToDelete(null);
     } catch (error) {
       console.error("Delete user error:", error);
-    }
-  };
-
-  const handleApproveAll = async () => {
-    const pendingUsers = users.filter(u => !u.isApproved);
-    if (pendingUsers.length === 0) return;
-    
-    try {
-      await Promise.all(pendingUsers.map(u => updateDoc(doc(db, 'users', u.uid), { isApproved: true })));
-      if (auth.currentUser) {
-        await logAction('一括承認', `${pendingUsers.length}件のアカウントを一括承認しました`, auth.currentUser.uid);
-      }
-      setAlertMessage(`${pendingUsers.length}件のアカウントを一括承認しました。`);
-      setIsAlertOpen(true);
-    } catch (error) {
-      console.error("Bulk approval error:", error);
     }
   };
 
@@ -228,17 +241,7 @@ const AdminPage: React.FC = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
-            <div className="flex flex-col md:flex-row justify-between gap-4">
-              <div className="flex items-center gap-3">
-                {users.some(u => !u.isApproved) && (
-                  <button 
-                    onClick={handleApproveAll}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20"
-                  >
-                    未承認をすべて承認
-                  </button>
-                )}
-              </div>
+            <div className="flex justify-end">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input 

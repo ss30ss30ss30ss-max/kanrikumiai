@@ -19,7 +19,7 @@ const ParkingReservation: React.FC = () => {
   const [resToDelete, setResToDelete] = useState<string | null>(null);
   
   const [newRes, setNewRes] = useState({
-    spaceNumber: 1,
+    spaceNumber: 7,
     startTime: '09:00',
     endTime: '18:00',
     carNumber: ''
@@ -97,7 +97,7 @@ const ParkingReservation: React.FC = () => {
       await logAction('駐車場予約', `${profile.roomNumber || '管理者'}が駐車場${newRes.spaceNumber}を予約しました（${format(selectedDate, 'MM/dd')} ${newRes.startTime}-${newRes.endTime}、車番: ${newRes.carNumber}）`, user.uid);
       
       setIsModalOpen(false);
-      setNewRes({ spaceNumber: 1, startTime: '09:00', endTime: '18:00', carNumber: '' });
+      setNewRes({ spaceNumber: 7, startTime: '09:00', endTime: '18:00', carNumber: '' });
     } catch (error) {
       handleFirestoreError(error, 'create' as any, 'parking_reservations');
     }
@@ -136,14 +136,14 @@ const ParkingReservation: React.FC = () => {
   if (!settings.isPublic && !isManager) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
-        <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+        <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
           <Car size={40} />
         </div>
         <div className="text-center max-w-md px-6">
-          <h3 className="text-2xl font-black text-slate-900">駐車場予約は現在停止中です</h3>
+          <h3 className="text-2xl font-black text-white">駐車場予約は現在停止中です</h3>
           <p className="text-slate-500 mt-4 font-medium leading-relaxed">
             管理組合による設定により、現在はシステムからの予約を受け付けておりません。<br />
-            詳細については<span className="text-indigo-600 font-bold">「お知らせ」</span>や掲示板等をご確認いただくか、管理事務所までお問い合わせください。
+            詳細については<span className="text-indigo-400 font-bold">「お知らせ」</span>や掲示板等をご確認いただくか、管理事務所までお問い合わせください。
           </p>
         </div>
       </div>
@@ -154,8 +154,8 @@ const ParkingReservation: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-slate-900">来客用駐車場予約</h2>
-          <p className="text-slate-500 mt-2 font-medium">来客用の駐車場（全4区画）の予約管理を行います。</p>
+          <h2 className="text-4xl font-black tracking-tighter text-white">来客用駐車場予約</h2>
+          <p className="text-slate-500 mt-2 font-medium">来客用の駐車場（No.7〜10）の予約管理を行います。</p>
         </div>
         <div className="flex items-center gap-4">
           {isManager && (
@@ -179,6 +179,22 @@ const ParkingReservation: React.FC = () => {
           </button>
         </div>
       </header>
+      
+      <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-start gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+          <AlertCircle size={24} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-black text-amber-500">ご利用上の注意</h3>
+          <ul className="text-sm text-slate-400 font-medium space-y-1 list-disc list-inside">
+            <li>予約は当日を含む14日先まで可能です。</li>
+            <li>1回の予約につき、最大24時間までご利用いただけます。</li>
+            <li>車両番号（ナンバープレート）は必ず正しく入力してください。未登録車両は不法駐車として扱われる場合があります。</li>
+            <li>予約時間を過ぎてのご利用は、他の方の迷惑となりますので固くお断りいたします。</li>
+            <li>駐車場内での事故・盗難等について、管理組合は一切の責任を負いません。</li>
+          </ul>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Date Selector */}
@@ -206,7 +222,7 @@ const ParkingReservation: React.FC = () => {
                     className={`w-full p-4 rounded-2xl text-left transition-all border flex items-center justify-between group ${
                       isSelected 
                       ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20' 
-                      : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex-1">
@@ -236,7 +252,7 @@ const ParkingReservation: React.FC = () => {
         {/* Spaces Grid */}
         <div className="lg:col-span-3 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((spaceNum) => {
+            {[7, 8, 9, 10].map((spaceNum) => {
               const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
               const spaceReservations = reservations
                 .filter(r => r.spaceNumber === spaceNum && r.date === selectedDateStr)
@@ -244,8 +260,8 @@ const ParkingReservation: React.FC = () => {
 
               return (
                 <div key={spaceNum} className="glass-card overflow-hidden flex flex-col">
-                  <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-3">
+                  <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                    <h3 className="text-lg font-black text-white flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500">
                         <Car size={20} />
                       </div>
@@ -257,16 +273,16 @@ const ParkingReservation: React.FC = () => {
                   </div>
                   <div className="p-6 space-y-4 flex-1">
                     {spaceReservations.map((res) => (
-                      <div key={res.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 group hover:border-indigo-500/30 transition-all">
+                      <div key={res.id} className="p-4 bg-slate-950/50 rounded-2xl border border-slate-800 group hover:border-indigo-500/30 transition-all">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 text-indigo-600">
+                          <div className="flex items-center gap-2 text-indigo-400">
                             <Clock size={14} />
                             <span className="text-xs font-black tracking-widest">{res.startTime} - {res.endTime}</span>
                           </div>
                           {(isManager || res.userId === user?.uid) && (
                             <button 
                               onClick={() => handleDelete(res.id)}
-                              className="p-2 text-slate-500 hover:text-rose-500 transition-colors"
+                              className="p-2 text-slate-600 hover:text-rose-500 transition-colors"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -274,7 +290,7 @@ const ParkingReservation: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-black text-slate-900">{res.userName}</p>
+                            <p className="text-sm font-black text-white">{res.userName}</p>
                             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-0.5">車番: {res.carNumber}</p>
                           </div>
                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{res.roomNumber}</p>
@@ -283,7 +299,7 @@ const ParkingReservation: React.FC = () => {
                     ))}
                     {spaceReservations.length === 0 && (
                       <div className="h-full flex flex-col items-center justify-center py-10 text-center space-y-3">
-                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
+                        <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center text-slate-700">
                           <Car size={24} />
                         </div>
                         <p className="text-xs font-bold text-slate-600 italic">予約はありません</p>
@@ -300,16 +316,16 @@ const ParkingReservation: React.FC = () => {
       {/* Reservation Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white border border-slate-200 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl"
+              className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-3xl font-black text-slate-900">駐車場予約</h3>
-                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors">
+                <h3 className="text-3xl font-black text-white">駐車場予約</h3>
+                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                   <Plus size={24} className="rotate-45" />
                 </button>
               </div>
@@ -318,7 +334,7 @@ const ParkingReservation: React.FC = () => {
                 <CalendarIcon className="text-indigo-500" size={24} />
                 <div>
                   <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">予約日</p>
-                  <p className="font-black text-slate-900">{format(selectedDate, 'yyyy年 M月 d日 (EEEE)', { locale: ja })}</p>
+                  <p className="font-black text-white">{format(selectedDate, 'yyyy年 M月 d日 (EEEE)', { locale: ja })}</p>
                 </div>
               </div>
 
@@ -326,7 +342,7 @@ const ParkingReservation: React.FC = () => {
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-4">駐車場番号</label>
                   <div className="grid grid-cols-4 gap-3">
-                    {[1, 2, 3, 4].map((num) => (
+                    {[7, 8, 9, 10].map((num) => (
                       <button
                         key={num}
                         type="button"
@@ -334,7 +350,7 @@ const ParkingReservation: React.FC = () => {
                         className={`py-3 rounded-xl font-black text-sm transition-all border ${
                           newRes.spaceNumber === num 
                           ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg' 
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-700'
                         }`}
                       >
                         {num}
@@ -376,13 +392,14 @@ const ParkingReservation: React.FC = () => {
                     className="input-field"
                     required
                   />
+                  <p className="text-[9px] text-slate-500 ml-4">※ナンバープレートの情報を正確に入力してください。</p>
                 </div>
 
                 <div className="flex gap-4 pt-4">
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 h-14 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all"
+                    className="flex-1 h-14 rounded-2xl border border-slate-800 text-slate-400 font-bold hover:bg-slate-800 transition-all"
                   >キャンセル</button>
                   <button 
                     type="submit" 

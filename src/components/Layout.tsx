@@ -3,7 +3,7 @@ import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { Announcement, ParkingSettings } from '../types';
-import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, MessageSquare, Car, User } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, MessageSquare, Car, User, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LayoutProps {
@@ -178,9 +178,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             </div>
             <Settings size={14} className="text-slate-600 group-hover:text-indigo-400" />
           </button>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 text-slate-500 font-bold text-xs hover:text-red-400 transition-colors">
-            <LogOut size={14}/> ログアウト
-          </button>
+          <div className="flex items-center justify-between px-2">
+            <button 
+              onClick={() => setActiveTab('guide')} 
+              className={`flex items-center gap-2 py-2 font-bold text-xs transition-colors ${activeTab === 'guide' ? 'text-indigo-400' : 'text-slate-500 hover:text-indigo-400'}`}
+            >
+              <HelpCircle size={14}/> ヘルプ
+            </button>
+            <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-slate-500 font-bold text-xs hover:text-red-400 transition-colors">
+              <LogOut size={14}/> ログアウト
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -192,11 +200,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                activeTab === 'members' ? '名簿確認' : 
                activeTab === 'accounting' ? '会計・決算' : 
                activeTab === 'announcements' ? 'お知らせ' :
-               activeTab === 'bulletin' ? '掲示板' :
                activeTab === 'inquiries' ? '問い合わせ' :
                activeTab === 'parking' ? '駐車場予約' :
                activeTab === 'mypage' ? 'マイページ' :
                activeTab === 'calendar' ? 'カレンダー' :
+               activeTab === 'guide' ? 'ご利用ガイド' :
                activeTab === 'documents' ? '配布用文書' :
                activeTab === 'approval' ? 'アカウント承認' :
                activeTab === 'admin' ? 'システム設定' : activeTab}
@@ -214,6 +222,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                   {unreadCount}
                 </span>
               )}
+            </button>
+            <button 
+              onClick={() => setActiveTab('guide')}
+              className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${
+                activeTab === 'guide' 
+                ? 'bg-indigo-600 border-indigo-500 text-white' 
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-indigo-400'
+              }`}
+              title="ご利用ガイド"
+            >
+              <HelpCircle size={18} />
             </button>
             <button 
               onClick={handleLogout}
