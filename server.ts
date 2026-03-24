@@ -38,15 +38,14 @@ async function startServer() {
             "https://firestore.googleapis.com",
           ],
           frameSrc: ["'self'", "https://*.firebaseapp.com"],
-          frameAncestors: ["'self'", "https://ai.studio", "https://*.google.com", "https://*.run.app"],
           objectSrc: ["'none'"],
           upgradeInsecureRequests: [],
         },
       },
       // X-Content-Type-Options: nosniff
       xContentTypeOptions: true,
-      // Disable X-Frame-Options to allow framing via CSP frame-ancestors
-      frameguard: false,
+      // X-Frame-Options: SAMEORIGIN
+      xFrameOptions: { action: "sameorigin" },
     })
   );
 
