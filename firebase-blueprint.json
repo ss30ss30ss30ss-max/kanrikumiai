@@ -158,6 +158,32 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["inquiryId", "senderId", "senderName", "content", "createdAt"]
+    },
+    "ParkingReservation": {
+      "title": "Parking Reservation",
+      "description": "Visitor parking spot reservation",
+      "type": "object",
+      "properties": {
+        "spaceNumber": { "type": "integer" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "carNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["spaceNumber", "date", "startTime", "endTime", "userId", "userName", "roomNumber", "carNumber", "createdAt"]
+    },
+    "ParkingSettings": {
+      "title": "Parking Settings",
+      "description": "Global settings for parking reservation",
+      "type": "object",
+      "properties": {
+        "isPublic": { "type": "boolean" }
+      },
+      "required": ["isPublic"]
     }
   },
   "firestore": {
@@ -170,6 +196,8 @@
     "/documents/{id}": { "schema": "DistributionDocument", "description": "Formal documents" },
     "/bulletin_posts/{id}": { "schema": "BulletinPost", "description": "Community posts" },
     "/inquiries/{id}": { "schema": "Inquiry", "description": "Support inquiries" },
-    "/inquiries/{id}/messages/{messageId}": { "schema": "InquiryMessage", "description": "Messages in an inquiry" }
+    "/inquiries/{id}/messages/{messageId}": { "schema": "InquiryMessage", "description": "Messages in an inquiry" },
+    "/parking_reservations/{id}": { "schema": "ParkingReservation", "description": "Parking spot bookings" },
+    "/settings/parking": { "schema": "ParkingSettings", "description": "Parking feature configuration" }
   }
 }

@@ -23,33 +23,39 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
   useEffect(() => {
     if (!profile) return;
 
-    const qAnnouncements = query(collection(db, 'announcements'), orderBy('date', 'desc'), limit(3));
-    const unsubscribeAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
-      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    }, (error) => {
-      handleFirestoreError(error, 'list' as any, 'announcements');
-    });
-
-    const qEvents = query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'), limit(3));
-    const unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
-      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CalendarEvent)));
-    }, (error) => {
-      handleFirestoreError(error, 'list' as any, 'calendar_events');
-    });
-
-    const qRecords = query(collection(db, 'accounting'), orderBy('date', 'desc'), limit(5));
-    const unsubscribeRecords = onSnapshot(qRecords, (snapshot) => {
-      setRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccountingRecord)));
-    }, (error) => {
-      handleFirestoreError(error, 'list' as any, 'accounting');
-    });
-
-    // Pending approval count for privileged users
     const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
     const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
-    
-    let unsubscribeApproval: (() => void) | null = null;
+    const isApproved = profile.isApproved || isPrivileged;
+
+    let unsubscribeAnnouncements = () => {};
+    let unsubscribeEvents = () => {};
+    let unsubscribeRecords = () => {};
+    let unsubscribeApproval = () => {};
+
+    if (isApproved) {
+      const qAnnouncements = query(collection(db, 'announcements'), orderBy('date', 'desc'), limit(3));
+      unsubscribeAnnouncements = onSnapshot(qAnnouncements, (snapshot) => {
+        setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
+      }, (error) => {
+        handleFirestoreError(error, 'list' as any, 'announcements');
+      });
+
+      const qEvents = query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'), limit(3));
+      unsubscribeEvents = onSnapshot(qEvents, (snapshot) => {
+        setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CalendarEvent)));
+      }, (error) => {
+        handleFirestoreError(error, 'list' as any, 'calendar_events');
+      });
+    }
+
     if (isPrivileged) {
+      const qRecords = query(collection(db, 'accounting'), orderBy('date', 'desc'), limit(5));
+      unsubscribeRecords = onSnapshot(qRecords, (snapshot) => {
+        setRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccountingRecord)));
+      }, (error) => {
+        handleFirestoreError(error, 'list' as any, 'accounting');
+      });
+
       const qApproval = query(collection(db, 'users'), where('isApproved', '==', false));
       unsubscribeApproval = onSnapshot(qApproval, (snapshot) => {
         setPendingApprovalCount(snapshot.docs.length);
@@ -62,7 +68,7 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
       unsubscribeAnnouncements();
       unsubscribeEvents();
       unsubscribeRecords();
-      if (unsubscribeApproval) unsubscribeApproval();
+      unsubscribeApproval();
     };
   }, [profile]);
 
@@ -103,7 +109,7 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
           <Building2 className="absolute right-[-2rem] bottom-[-2rem] w-64 h-64 text-white/5 transition-transform group-hover:scale-110 duration-700" />
           <div className="relative z-10 h-full flex flex-col">
-            <span className="inline-block px-4 py-1.5 bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10 mb-6 backdrop-blur-md">マンション管理ポータル</span>
+            <span className="inline-block px-4 py-1.5 bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10 mb-6 backdrop-blur-md">駅北南管理運営</span>
             <h2 className="text-4xl md:text-5xl font-black text-white mb-8 leading-tight tracking-tighter">おかえりなさい、<br className="hidden sm:block"/>{profile?.name || 'ユーザー'}様。</h2>
             <div className="flex flex-wrap gap-3 mt-auto">
               <div className="px-5 py-2.5 bg-slate-950/40 rounded-2xl text-xs font-black border border-white/5 backdrop-blur-md text-indigo-200">{profile?.roomNumber || '---'}部屋番号</div>
@@ -134,10 +140,10 @@ const Dashboard: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiv
             label="問い合わせ" 
             onClick={() => setActiveTab('inquiries')} 
           />
-          <QuickAction icon={<CreditCard className="text-emerald-400" size={20}/>} label="会計・決算" onClick={() => setActiveTab('accounting')} />
           
           {isPrivileged && (
             <>
+              <QuickAction icon={<CreditCard className="text-emerald-400" size={20}/>} label="会計・決算" onClick={() => setActiveTab('accounting')} />
               <QuickAction icon={<FileText className="text-blue-400" size={20}/>} label="配布用文書" onClick={() => setActiveTab('documents')} />
               <QuickAction 
                 icon={

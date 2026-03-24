@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
-import { Announcement } from '../types';
-import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, MessageSquare } from 'lucide-react';
+import { Announcement, ParkingSettings } from '../types';
+import { LogOut, LayoutDashboard, Users, CreditCard, Bell, Calendar, Settings, Menu, X, ShieldCheck, Wallet, Building2, UserCheck, FileText, MessageSquare, Car, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LayoutProps {
@@ -20,7 +20,7 @@ const PCNavBtn = ({ icon, label, active, onClick }: { icon: React.ReactNode, lab
 );
 
 const MobileNavBtn = ({ icon, active, onClick }: { icon: React.ReactNode, active: boolean, onClick: () => void }) => (
-  <button onClick={onClick} className={`p-3 rounded-2xl transition-all ${active ? 'bg-indigo-600 text-white scale-110 shadow-lg' : 'text-slate-500'}`}>{icon}</button>
+  <button onClick={onClick} className={`p-3 rounded-2xl transition-all shrink-0 ${active ? 'bg-indigo-600 text-white scale-110 shadow-lg' : 'text-slate-500'}`}>{icon}</button>
 );
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
@@ -28,10 +28,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadInquiries, setUnreadInquiries] = useState(0);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const [parkingSettings, setParkingSettings] = useState<ParkingSettings>({ isPublic: false });
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
   const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
   const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
+  const isAdmin = profile?.role === 'admin' || isMasterAdmin;
 
   useEffect(() => {
     if (!profile || !auth.currentUser) return;
@@ -79,10 +81,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       });
     }
 
+    // Parking settings
+    const unsubParking = onSnapshot(doc(db, 'settings', 'parking'), (docSnap) => {
+      if (docSnap.exists()) {
+        setParkingSettings(docSnap.data() as ParkingSettings);
+      }
+    });
+
     return () => {
       unsubscribe();
       if (unsubscribeInq) unsubscribeInq();
       if (unsubscribeApproval) unsubscribeApproval();
+      unsubParking();
     };
   }, [profile, isManager, isPrivileged]);
 
@@ -112,7 +122,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           <PCNavBtn icon={<LayoutDashboard size={20}/>} label="ホーム" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <div className="pt-6 pb-2 px-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">メインメニュー</div>
           <PCNavBtn icon={<Users size={20}/>} label="名簿確認" active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
-          <PCNavBtn icon={<Wallet size={20}/>} label="会計・決算" active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
           <PCNavBtn icon={<Bell size={20}/>} label="お知らせ" active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} />
           <PCNavBtn 
             icon={<div className="relative"><MessageSquare size={20}/>{unreadInquiries > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>}</div>} 
@@ -121,10 +130,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             onClick={() => setActiveTab('inquiries')} 
           />
           <PCNavBtn icon={<Calendar size={20}/>} label="カレンダー" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
+          <PCNavBtn icon={<Car size={20}/>} label="駐車場予約" active={activeTab === 'parking'} onClick={() => setActiveTab('parking')} />
           
           {isPrivileged && (
             <>
               <PCNavBtn icon={<FileText size={20}/>} label="配布用文書" active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
+            </>
+          )}
+
+          {isManager && (
+            <>
               <div className="pt-6 pb-2 px-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">管理業務</div>
               <PCNavBtn 
                 icon={
@@ -145,20 +160,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           )}
 
           {isManager && (
-            <PCNavBtn icon={<Settings size={20}/>} label="システム設定" active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />
+            <PCNavBtn icon={<Settings size={20}/>} label="システム管理" active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />
           )}
         </nav>
         
         <div className="mt-8 p-5 bg-slate-900/50 rounded-3xl border border-slate-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center font-bold text-indigo-400">
+          <button 
+            onClick={() => setActiveTab('mypage')}
+            className="w-full flex items-center gap-3 mb-4 p-2 rounded-2xl hover:bg-slate-800 transition-all text-left group"
+          >
+            <div className="w-10 h-10 bg-indigo-950 rounded-xl flex items-center justify-center font-bold text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
               {profile?.roomNumber?.[0] || profile?.name?.[0] || '?'}
             </div>
-            <div className="min-w-0">
-              <p className="font-bold text-white truncate text-sm">{profile?.name || 'ユーザー'}</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-white truncate text-sm group-hover:text-indigo-400 transition-all">{profile?.name || 'ユーザー'}</p>
               <p className="text-[10px] text-indigo-400 font-bold uppercase">{roleLabel}</p>
             </div>
-          </div>
+            <Settings size={14} className="text-slate-600 group-hover:text-indigo-400" />
+          </button>
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 text-slate-500 font-bold text-xs hover:text-red-400 transition-colors">
             <LogOut size={14}/> ログアウト
           </button>
@@ -175,6 +194,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                activeTab === 'announcements' ? 'お知らせ' :
                activeTab === 'bulletin' ? '掲示板' :
                activeTab === 'inquiries' ? '問い合わせ' :
+               activeTab === 'parking' ? '駐車場予約' :
+               activeTab === 'mypage' ? 'マイページ' :
                activeTab === 'calendar' ? 'カレンダー' :
                activeTab === 'documents' ? '配布用文書' :
                activeTab === 'approval' ? 'アカウント承認' :
@@ -212,7 +233,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       </div>
 
       {/* Mobile Nav */}
-      <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-16 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 flex items-center justify-around rounded-3xl z-50 shadow-2xl px-2">
+      <nav className="lg:hidden fixed bottom-6 left-6 right-6 h-16 bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 flex items-center gap-2 overflow-x-auto rounded-3xl z-50 shadow-2xl px-4 scrollbar-hide">
         <MobileNavBtn icon={<LayoutDashboard size={20}/>} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
         <MobileNavBtn icon={<Users size={20}/>} active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
         <MobileNavBtn 
@@ -221,24 +242,29 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           onClick={() => setActiveTab('inquiries')} 
         />
         <MobileNavBtn icon={<Bell size={20}/>} active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} />
-        <MobileNavBtn icon={<Wallet size={20}/>} active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
+        <MobileNavBtn icon={<Car size={20}/>} active={activeTab === 'parking'} onClick={() => setActiveTab('parking')} />
+        <MobileNavBtn icon={<User size={20}/>} active={activeTab === 'mypage'} onClick={() => setActiveTab('mypage')} />
         
         {isPrivileged && (
           <>
+            <MobileNavBtn icon={<Wallet size={20}/>} active={activeTab === 'accounting'} onClick={() => setActiveTab('accounting')} />
             <MobileNavBtn icon={<FileText size={20}/>} active={activeTab === 'documents'} onClick={() => setActiveTab('documents')} />
-            <MobileNavBtn 
-              icon={
-                <div className="relative">
-                  <UserCheck size={20}/>
-                  {pendingApprovalCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-                  )}
-                </div>
-              } 
-              active={activeTab === 'approval'} 
-              onClick={() => setActiveTab('approval')} 
-            />
           </>
+        )}
+        
+        {isManager && (
+          <MobileNavBtn 
+            icon={
+              <div className="relative">
+                <UserCheck size={20}/>
+                {pendingApprovalCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+                )}
+              </div>
+            } 
+            active={activeTab === 'approval'} 
+            onClick={() => setActiveTab('approval')} 
+          />
         )}
         
         {isManager && <MobileNavBtn icon={<Settings size={20}/>} active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />}

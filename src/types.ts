@@ -96,3 +96,20 @@ export interface BulletinComment {
   authorName: string;
   createdAt: string;
 }
+
+export interface ParkingReservation {
+  id: string;
+  spaceNumber: number; // 1, 2, 3, 4
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  userId: string;
+  userName: string;
+  roomNumber: string;
+  carNumber: string;
+  createdAt: string;
+}
+
+export interface ParkingSettings {
+  isPublic: boolean;
+}

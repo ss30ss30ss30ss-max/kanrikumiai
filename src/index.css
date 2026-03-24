@@ -50,27 +50,27 @@
 
 @layer base {
   body {
-    @apply bg-[#020617] text-slate-200 overflow-x-hidden;
+    @apply bg-slate-950 text-slate-200 overflow-x-hidden;
   }
 }
 
 @layer components {
   .glass-card {
-    background-color: #0f172a99;
-    backdrop-filter: blur(64px);
-    -webkit-backdrop-filter: blur(64px);
+    background-color: #0f172acc;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid #1e293b;
-    border-radius: 2.5rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border-radius: 2rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
   }
   
   /* Custom gradients using hex to avoid oklab/oklch issues in html2canvas */
   .report-emerald-gradient {
-    background: linear-gradient(135deg, #059669, #064e3b);
+    background: linear-gradient(135deg, #10b981, #059669);
   }
   
   .report-orange-gradient {
-    background: linear-gradient(135deg, #ea580c, #7c2d12);
+    background: linear-gradient(135deg, #f97316, #ea580c);
   }
   
   .input-field {
@@ -78,17 +78,18 @@
     height: 3.5rem;
     padding-left: 2.75rem;
     padding-right: 1rem;
-    background-color: #1e293b66;
-    border: 1px solid #334155;
+    background-color: #020617;
+    border: 1px solid #1e293b;
     border-radius: 1rem;
     outline: none;
-    color: white;
+    color: #f1f5f9;
     transition: all 0.2s;
   }
   
   .input-field:focus {
     border-color: #6366f1;
     box-shadow: 0 0 0 4px #6366f11a;
+    background-color: #020617;
   }
   
   .btn-primary {
@@ -98,7 +99,7 @@
     color: white;
     border-radius: 1rem;
     font-weight: 700;
-    box-shadow: 0 10px 15px -3px #312e8133;
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
     transition: all 0.2s;
     display: flex;
     align-items: center;
@@ -107,7 +108,9 @@
   }
 
   .btn-primary:hover {
-    background-color: #6366f1;
+    background-color: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 12px 20px -3px rgba(79, 70, 229, 0.4);
   }
 
   .btn-primary:active {

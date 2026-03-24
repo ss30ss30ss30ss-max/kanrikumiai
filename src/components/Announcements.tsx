@@ -52,7 +52,7 @@ const Announcements: React.FC = () => {
   };
 
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
-  const canEdit = profile?.role === 'manager' || profile?.role === 'asst_manager' || isMasterAdmin;
+  const canEdit = profile && profile.role !== 'resident' && profile.isApproved;
 
   const markAsRead = async (annId: string) => {
     if (!profile || !auth.currentUser) return;
@@ -216,7 +216,7 @@ const Announcements: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-white">お知らせ</h2>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">お知らせ</h2>
           <p className="text-slate-500 mt-2 font-medium">管理組合からの重要な連絡事項を掲示します。</p>
         </div>
         <div className="flex gap-3">
@@ -225,7 +225,7 @@ const Announcements: React.FC = () => {
             <input 
               type="text" 
               placeholder="お知らせを検索..." 
-              className="bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none w-64 transition-all"
+              className="bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-6 text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none w-64 transition-all"
             />
           </div>
           {canEdit && (
@@ -260,7 +260,7 @@ const Announcements: React.FC = () => {
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
                       !isRead 
                       ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-900/40' 
-                      : 'bg-[#6366f11a] border border-[#6366f133] text-indigo-400'
+                      : 'bg-indigo-50 border border-indigo-100 text-indigo-600'
                     }`}>
                       <Bell size={24} />
                     </div>
@@ -280,7 +280,7 @@ const Announcements: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <h3 className="text-2xl font-black text-white mt-1 group-hover:text-indigo-400 transition-colors">{ann.title}</h3>
+                      <h3 className="text-2xl font-black text-slate-900 mt-1 group-hover:text-indigo-400 transition-colors">{ann.title}</h3>
                     </div>
                   </div>
                   {canEdit && (
@@ -289,17 +289,17 @@ const Announcements: React.FC = () => {
                     </button>
                   )}
                 </div>
-                <div className="prose prose-invert max-w-none text-slate-400 leading-relaxed font-medium">
+                <div className="prose max-w-none text-slate-400 leading-relaxed font-medium">
                   <ReactMarkdown>{ann.content}</ReactMarkdown>
                 </div>
-                <div className="mt-8 pt-8 border-t border-slate-800 flex items-center justify-between">
+                <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                     管理組合 事務局
                   </div>
                   <div className="flex items-center gap-4">
                     <button 
                       onClick={() => setPreviewAnnouncement(ann)}
-                      className="flex items-center gap-2 text-indigo-400 font-black text-xs hover:text-indigo-300 transition-colors no-pdf"
+                      className="flex items-center gap-2 text-indigo-600 font-black text-xs hover:text-indigo-300 transition-colors no-pdf"
                     >
                       <Download size={18} />
                       <span>プレビュー・保存</span>
@@ -311,7 +311,7 @@ const Announcements: React.FC = () => {
           );
         })}
         {announcements.length === 0 && (
-          <div className="p-20 rounded-[3rem] border border-dashed border-slate-800 text-center text-slate-500 font-bold italic">
+          <div className="p-20 rounded-[3rem] border border-dashed border-slate-200 text-center text-slate-500 font-bold italic">
             現在、お知らせはありません。
           </div>
         )}
@@ -320,16 +320,16 @@ const Announcements: React.FC = () => {
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="bg-white border border-slate-200 w-full max-w-2xl rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-3xl font-black text-white">お知らせを作成</h3>
-                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                <h3 className="text-3xl font-black text-slate-900">お知らせを作成</h3>
+                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors">
                   <Plus size={24} className="rotate-45" />
                 </button>
               </div>
@@ -342,7 +342,7 @@ const Announcements: React.FC = () => {
                         key={t.name}
                         type="button"
                         onClick={() => applyTemplate(t)}
-                        className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-black text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-400 hover:border-indigo-500/20 transition-all"
+                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-400 hover:border-indigo-500/20 transition-all"
                       >
                         {t.name}
                       </button>
@@ -374,7 +374,7 @@ const Announcements: React.FC = () => {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 h-14 rounded-2xl border border-slate-800 text-slate-400 font-bold hover:bg-slate-800 transition-all"
+                    className="flex-1 h-14 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all"
                   >キャンセル</button>
                   <button 
                     type="submit" 
@@ -391,28 +391,28 @@ const Announcements: React.FC = () => {
 
       <AnimatePresence>
         {previewAnnouncement && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl">
             <motion.div 
               key="announcement-preview"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
+              className="w-full max-w-2xl bg-white border border-slate-200 rounded-[3rem] overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-                <h3 className="text-2xl font-black text-white flex items-center gap-3">
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                   <Eye className="text-indigo-500" />
                   お知らせプレビュー
                 </h3>
                 <button 
                   onClick={() => setPreviewAnnouncement(null)}
-                  className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
                 >
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-100">
                 <div id={`ann-preview-${previewAnnouncement.id}`} className="bg-white text-black p-12 shadow-2xl mx-auto w-full max-w-[600px] min-h-[800px] flex flex-col font-serif">
                   <div className="text-right mb-8 text-[10px]">
                     {new Date(previewAnnouncement.date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -436,7 +436,7 @@ const Announcements: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-8 border-t border-slate-800 bg-slate-900/50">
+              <div className="p-8 border-t border-slate-100 bg-slate-50/50">
                 <button
                   onClick={() => handleDownloadPDF(previewAnnouncement)}
                   disabled={isDownloading === previewAnnouncement.id}

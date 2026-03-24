@@ -3,7 +3,7 @@ import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, deleteDo
 import { db, auth } from '../firebase';
 import { useAuth, logAction } from '../AuthContext';
 import { Settings, Shield, UserCheck, History, Search, Check, X, ShieldCheck, ShieldAlert, Activity, Trash2, MessageSquare } from 'lucide-react';
-import { UserProfile, SystemLog } from '../types';
+import { UserProfile, SystemLog, ParkingSettings } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import ConfirmModal from './ConfirmModal';
 import Inquiries from './Inquiries';
@@ -11,39 +11,58 @@ import Inquiries from './Inquiries';
 const AdminPage: React.FC = () => {
   const { profile, handleFirestoreError } = useAuth();
   const isMasterAdmin = profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com';
+  const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
+  const isAdmin = profile?.role === 'admin' || isMasterAdmin;
   const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inquiries' | 'logs'>(isMasterAdmin ? 'users' : 'inquiries');
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'inquiries' | 'logs' | 'settings'>(isManager ? 'users' : 'inquiries');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [parkingSettings, setParkingSettings] = useState<ParkingSettings>({ isPublic: false });
   const [searchTerm, setSearchTerm] = useState('');
+  const [logSearchTerm, setLogSearchTerm] = useState('');
   const [logTab, setLogTab] = useState<'all' | 'access' | 'operation'>('all');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [userToDelete, setUserToDelete] = useState<{ uid: string; name: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!isPrivileged) return;
 
     let unsubUsers = () => {};
-    if (isMasterAdmin) {
+    if (isManager) {
       unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-        setUsers(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
+        const userList = snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        // Sort by room number
+        userList.sort((a, b) => {
+          const roomA = a.roomNumber || '9999';
+          const roomB = b.roomNumber || '9999';
+          return roomA.localeCompare(roomB, undefined, { numeric: true });
+        });
+        setUsers(userList);
       }, (err) => handleFirestoreError(err, 'get' as any, 'users', auth.currentUser));
     }
 
     let unsubLogs = () => {};
-    if (isMasterAdmin) {
+    if (isAdmin) {
       const qLogs = query(collection(db, 'logs'), orderBy('timestamp', 'desc'), limit(50));
       unsubLogs = onSnapshot(qLogs, (snap) => {
         setLogs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SystemLog)));
       }, (err) => handleFirestoreError(err, 'get' as any, 'logs', auth.currentUser));
     }
 
+    const unsubParking = onSnapshot(doc(db, 'settings', 'parking'), (docSnap) => {
+      if (docSnap.exists()) {
+        setParkingSettings(docSnap.data() as ParkingSettings);
+      }
+    });
+
     return () => {
       unsubUsers();
       unsubLogs();
+      unsubParking();
     };
   }, [isPrivileged, isMasterAdmin]);
 
@@ -112,16 +131,33 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleApproveAll = async () => {
+    const pendingUsers = users.filter(u => !u.isApproved);
+    if (pendingUsers.length === 0) return;
+    
+    try {
+      await Promise.all(pendingUsers.map(u => updateDoc(doc(db, 'users', u.uid), { isApproved: true })));
+      if (auth.currentUser) {
+        await logAction('一括承認', `${pendingUsers.length}件のアカウントを一括承認しました`, auth.currentUser.uid);
+      }
+      setAlertMessage(`${pendingUsers.length}件のアカウントを一括承認しました。`);
+      setIsAlertOpen(true);
+    } catch (error) {
+      console.error("Bulk approval error:", error);
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (u.roomNumber && u.roomNumber.includes(searchTerm))
   );
 
   const filteredLogs = logs.filter(log => {
-    if (logTab === 'all') return true;
-    const isAccess = log.action === 'ログイン' || log.action === 'ログアウト' || log.action === '利用申請';
-    if (logTab === 'access') return isAccess;
-    return !isAccess;
+    const matchesTab = logTab === 'all' || (logTab === 'access' ? (log.action === 'ログイン' || log.action === 'ログアウト' || log.action === '利用申請') : !(log.action === 'ログイン' || log.action === 'ログアウト' || log.action === '利用申請'));
+    const matchesSearch = log.action.toLowerCase().includes(logSearchTerm.toLowerCase()) || 
+                         log.details.toLowerCase().includes(logSearchTerm.toLowerCase()) ||
+                         (log.email && log.email.toLowerCase().includes(logSearchTerm.toLowerCase()));
+    return matchesTab && matchesSearch;
   });
 
   if (!isPrivileged) {
@@ -146,7 +182,7 @@ const AdminPage: React.FC = () => {
           <p className="text-slate-500 mt-2 font-medium">ユーザーアカウントの承認、権限設定、および操作履歴の確認を行います。</p>
         </div>
         <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800">
-          {isMasterAdmin && (
+          {isManager && (
             <button 
               onClick={() => setActiveAdminTab('users')}
               className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'users' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
@@ -162,13 +198,22 @@ const AdminPage: React.FC = () => {
             <MessageSquare size={16} />
             問い合わせ管理
           </button>
-          {isMasterAdmin && (
+          {isAdmin && (
             <button 
               onClick={() => setActiveAdminTab('logs')}
               className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'logs' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
             >
               <Activity size={16} />
               システムログ
+            </button>
+          )}
+          {isAdmin && (
+            <button 
+              onClick={() => setActiveAdminTab('settings')}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeAdminTab === 'settings' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <Settings size={16} />
+              設定
             </button>
           )}
         </div>
@@ -183,7 +228,17 @@ const AdminPage: React.FC = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
-            <div className="flex justify-end">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="flex items-center gap-3">
+                {users.some(u => !u.isApproved) && (
+                  <button 
+                    onClick={handleApproveAll}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-900/20"
+                  >
+                    未承認をすべて承認
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                 <input 
@@ -242,14 +297,25 @@ const AdminPage: React.FC = () => {
                             <option value="asst_manager">管理補佐</option>
                           </select>
                         </td>
-                        <td className="px-8 py-6 text-right">
-                          <button 
-                            onClick={() => handleDeleteUser(u.uid, u.name || '')}
-                            className="p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-all border border-transparent hover:border-rose-500/20"
-                            title="アカウント削除"
-                          >
-                            <Trash2 size={20} />
-                          </button>
+                        <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                          {isAdmin && (
+                            <button 
+                              onClick={() => setSelectedUser(u)}
+                              className="p-3 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-400/10 rounded-2xl transition-all border border-transparent hover:border-indigo-400/20"
+                              title="詳細を表示"
+                            >
+                              <Search size={20} />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button 
+                              onClick={() => handleDeleteUser(u.uid, u.name || '')}
+                              className="p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-all border border-transparent hover:border-rose-500/20"
+                              title="アカウント削除"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -257,6 +323,78 @@ const AdminPage: React.FC = () => {
                 </table>
               </div>
             </div>
+
+            <AnimatePresence>
+              {selectedUser && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-10 w-full max-w-lg shadow-2xl"
+                  >
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                        <ShieldCheck className="text-indigo-500" />
+                        ユーザー詳細
+                      </h3>
+                      <button onClick={() => setSelectedUser(null)} className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">お名前</p>
+                          <p className="text-white font-black">{selectedUser.name || '未設定'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">部屋番号</p>
+                          <p className="text-indigo-400 font-mono font-black">{selectedUser.roomNumber || '未設定'}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">メールアドレス</p>
+                        <p className="text-white font-medium">{selectedUser.email}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">電話番号</p>
+                          <p className="text-white font-medium">{selectedUser.phone || '未登録'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">駐車場番号</p>
+                          <p className="text-white font-medium">{selectedUser.parking || '未登録'}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">権限</p>
+                          <p className="text-white font-black uppercase">{selectedUser.role}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">登録日</p>
+                          <p className="text-slate-400 text-xs font-mono">{new Date(selectedUser.createdAt).toLocaleDateString('ja-JP')}</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-6 border-t border-slate-800">
+                        <button 
+                          onClick={() => setSelectedUser(null)}
+                          className="w-full h-14 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all"
+                        >
+                          閉じる
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 
@@ -281,10 +419,22 @@ const AdminPage: React.FC = () => {
           >
             <div className="glass-card flex flex-col h-[700px]">
               <div className="p-8 border-b border-slate-800">
-                <h3 className="text-xl font-black flex items-center gap-3 text-white mb-6">
-                  <Activity size={24} className="text-indigo-500" />
-                  ログ履歴
-                </h3>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                  <h3 className="text-xl font-black flex items-center gap-3 text-white">
+                    <Activity size={24} className="text-indigo-500" />
+                    ログ履歴
+                  </h3>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="ログを検索..." 
+                      value={logSearchTerm}
+                      onChange={(e) => setLogSearchTerm(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none w-64 transition-all"
+                    />
+                  </div>
+                </div>
                 <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
                   <button 
                     onClick={() => setLogTab('all')}
@@ -324,6 +474,45 @@ const AdminPage: React.FC = () => {
                 {filteredLogs.length === 0 && (
                   <div className="p-20 text-center text-slate-600 font-bold italic">履歴がありません。</div>
                 )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeAdminTab === 'settings' && (
+          <motion.div 
+            key="settings"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-8"
+          >
+            <div className="glass-card p-8">
+              <h3 className="text-xl font-black flex items-center gap-3 text-white mb-8">
+                <Settings size={24} className="text-indigo-500" />
+                システム設定
+              </h3>
+              
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-6 bg-slate-950/50 rounded-3xl border border-slate-800">
+                  <div>
+                    <h4 className="text-lg font-black text-white">来客用駐車場予約の公開</h4>
+                    <p className="text-sm text-slate-500 font-medium">居住者向けに駐車場予約機能を公開するかどうかを設定します。</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await updateDoc(doc(db, 'settings', 'parking'), { isPublic: !parkingSettings.isPublic });
+                        await logAction('設定変更', `駐車場予約の公開設定を${!parkingSettings.isPublic ? '公開' : '非公開'}に変更しました`, auth.currentUser?.uid || '');
+                      } catch (error) {
+                        handleFirestoreError(error, 'update' as any, 'settings/parking');
+                      }
+                    }}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${parkingSettings.isPublic ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${parkingSettings.isPublic ? 'translate-x-7' : 'translate-x-1'}`} />
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

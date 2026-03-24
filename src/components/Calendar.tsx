@@ -97,13 +97,13 @@ const Calendar: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-white">カレンダー</h2>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">カレンダー</h2>
           <p className="text-slate-500 mt-2 font-medium">マンションの共用施設の予約やイベントを確認できます。</p>
         </div>
-        <div className="flex items-center gap-4 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-xl">
-          <button onClick={prevMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-800 rounded-xl text-slate-400 transition-colors"><ChevronLeft size={20} /></button>
-          <span className="px-4 font-black text-white text-sm tracking-tighter">{format(currentMonth, 'yyyy年 MM月', { locale: ja })}</span>
-          <button onClick={nextMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-800 rounded-xl text-slate-400 transition-colors"><ChevronRight size={20} /></button>
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-xl">
+          <button onClick={prevMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-xl text-slate-400 transition-colors"><ChevronLeft size={20} /></button>
+          <span className="px-4 font-black text-slate-900 text-sm tracking-tighter">{format(currentMonth, 'yyyy年 MM月', { locale: ja })}</span>
+          <button onClick={nextMonth} className="w-10 h-10 flex items-center justify-center hover:bg-slate-50 rounded-xl text-slate-400 transition-colors"><ChevronRight size={20} /></button>
         </div>
       </header>
 
@@ -133,10 +133,10 @@ const Calendar: React.FC = () => {
                   className={`aspect-square rounded-[1.5rem] border transition-all flex flex-col p-3 relative group ${
                     isToday(day) 
                     ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-900/20' 
-                    : 'border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/50'
+                    : 'border-slate-100 hover:border-indigo-500/50 hover:bg-slate-50/50'
                   }`}
                 >
-                  <span className={`text-sm font-black ${isToday(day) ? 'text-indigo-400' : 'text-slate-300'}`}>
+                  <span className={`text-sm font-black ${isToday(day) ? 'text-indigo-400' : 'text-slate-600'}`}>
                     {format(day, 'd')}
                   </span>
                   <div className="mt-auto flex gap-1 flex-wrap">
@@ -155,8 +155,8 @@ const Calendar: React.FC = () => {
 
         {/* Event List for Selected Month */}
         <div className="glass-card overflow-hidden flex flex-col">
-          <div className="p-8 border-b border-slate-800">
-            <h3 className="text-xl font-black flex items-center gap-3 text-white">
+          <div className="p-8 border-b border-slate-100">
+            <h3 className="text-xl font-black flex items-center gap-3 text-slate-900">
               <Clock size={24} className="text-indigo-500" />
               今月の予定
             </h3>
@@ -166,7 +166,7 @@ const Calendar: React.FC = () => {
               .filter(e => format(new Date(e.startDate), 'yyyy-MM') === format(currentMonth, 'yyyy-MM'))
               .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
               .map(ev => (
-                <div key={ev.id} className="relative pl-8 border-l-2 border-slate-800 group">
+                <div key={ev.id} className="relative pl-8 border-l-2 border-slate-100 group">
                   <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-900 group-hover:scale-150 transition-all" />
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
@@ -178,7 +178,7 @@ const Calendar: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  <h4 className="text-lg font-black text-white group-hover:text-indigo-400 transition-colors leading-tight">{ev.title}</h4>
+                  <h4 className="text-lg font-black text-slate-900 group-hover:text-indigo-400 transition-colors leading-tight">{ev.title}</h4>
                   <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">{ev.description}</p>
                 </div>
               ))}
@@ -194,18 +194,18 @@ const Calendar: React.FC = () => {
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="bg-white border border-slate-200 w-full max-w-lg rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-black text-white">
+                <h3 className="text-2xl font-black text-slate-900">
                   {selectedDate && format(selectedDate, 'MM月dd日')} の予定
                 </h3>
-                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+                <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors">
                   <Plus size={24} className="rotate-45" />
                 </button>
               </div>
@@ -256,7 +256,7 @@ const Calendar: React.FC = () => {
                   <button 
                     type="button" 
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 h-14 rounded-2xl border border-slate-800 text-slate-400 font-bold hover:bg-slate-800 transition-all"
+                    className="flex-1 h-14 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all"
                   >キャンセル</button>
                   <button 
                     type="submit" 

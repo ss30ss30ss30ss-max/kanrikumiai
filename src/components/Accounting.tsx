@@ -250,13 +250,13 @@ const Accounting: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-white">会計管理</h2>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">会計管理</h2>
           <p className="text-slate-500 mt-2 font-medium">マンションの収支状況を管理・確認できます。</p>
         </div>
         {isPrivileged && (
           <button
             onClick={() => setIsPreviewOpen(true)}
-            className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-2xl border border-slate-700 transition-all flex items-center gap-2 font-black text-sm"
+            className="bg-white hover:bg-slate-50 text-slate-900 px-6 py-3 rounded-2xl border border-slate-200 transition-all flex items-center gap-2 font-black text-sm"
           >
             <FileDown size={20} />
             <span>決算書作成</span>
@@ -267,7 +267,7 @@ const Accounting: React.FC = () => {
       <div id="accounting-report-area" className="space-y-6 p-2 md:p-4 rounded-[3rem]">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          <div className="report-emerald-gradient rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl shadow-[#064e3b33] border border-[#10b98133] transition-transform hover:scale-[1.02]">
+          <div className="report-emerald-gradient rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl shadow-emerald-100 border border-emerald-100/50 transition-transform hover:scale-[1.02]">
             <div className="flex items-center gap-3 mb-3 md:mb-4 opacity-80">
               <ArrowUpCircle size={18} className="md:w-5 md:h-5" />
               <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">総収入</span>
@@ -277,7 +277,7 @@ const Accounting: React.FC = () => {
               {totalIncome.toLocaleString()}
             </div>
           </div>
-          <div className="report-orange-gradient rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl shadow-[#7c2d1233] border border-[#f9731633] transition-transform hover:scale-[1.02]">
+          <div className="report-orange-gradient rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl shadow-orange-100 border border-orange-100/50 transition-transform hover:scale-[1.02]">
             <div className="flex items-center gap-3 mb-3 md:mb-4 opacity-80">
               <ArrowDownCircle size={18} className="md:w-5 md:h-5" />
               <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest">総支出</span>
@@ -287,7 +287,7 @@ const Accounting: React.FC = () => {
               {totalExpense.toLocaleString()}
             </div>
           </div>
-          <div className="bg-slate-900 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-white shadow-xl border border-slate-800 flex flex-col justify-between sm:col-span-2 lg:col-span-1 transition-transform hover:scale-[1.02]">
+          <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 text-slate-900 shadow-xl border border-slate-100 flex flex-col justify-between sm:col-span-2 lg:col-span-1 transition-transform hover:scale-[1.02]">
             <div className="flex items-center justify-between mb-3 md:mb-4">
               <div className="flex items-center gap-3 opacity-60">
                 <Wallet size={18} className="md:w-5 md:h-5" />
@@ -302,7 +302,7 @@ const Accounting: React.FC = () => {
                 </button>
               )}
             </div>
-            <div className="text-2xl md:text-3xl font-black tracking-tighter text-indigo-400 flex items-baseline gap-1">
+            <div className="text-2xl md:text-3xl font-black tracking-tighter text-indigo-600 flex items-baseline gap-1">
               <span className="text-lg md:text-xl opacity-60 font-medium">¥</span>
               {balance.toLocaleString()}
             </div>
@@ -311,35 +311,35 @@ const Accounting: React.FC = () => {
 
         {/* Transactions List */}
         <div className="glass-card overflow-hidden">
-          <div className="p-6 md:p-8 border-b border-slate-800 flex items-center justify-between bg-[#0206174d]">
-            <h3 className="text-lg md:text-xl font-black flex items-center gap-2">
+          <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <h3 className="text-lg md:text-xl font-black flex items-center gap-2 text-slate-900">
               <CreditCard className="text-indigo-500" size={20} />
               収支履歴
             </h3>
             <div className="flex gap-2 no-pdf">
-              <button className="p-2 bg-slate-900 rounded-xl border border-slate-800 text-slate-500 hover:text-white transition-colors"><Search size={16}/></button>
-              <button className="p-2 bg-slate-900 rounded-xl border border-slate-800 text-slate-500 hover:text-white transition-colors"><Filter size={16}/></button>
+              <button className="p-2 bg-white rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors"><Search size={16}/></button>
+              <button className="p-2 bg-white rounded-xl border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors"><Filter size={16}/></button>
             </div>
           </div>
-          <div className="divide-y divide-slate-800/50">
+          <div className="divide-y divide-slate-100">
             {records.map(record => (
-              <div key={record.id} className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#1e293b4d] transition-colors group">
+              <div key={record.id} className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center border shrink-0 ${
                     record.type === 'income' 
-                    ? 'bg-[#10b9811a] border-[#10b98133] text-emerald-400' 
-                    : 'bg-[#f973161a] border-[#f9731633] text-orange-400'
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                    : 'bg-orange-50 border-orange-100 text-orange-600'
                   }`}>
                     {record.type === 'income' ? <ArrowUpCircle size={20} className="md:w-6 md:h-6" /> : <ArrowDownCircle size={20} className="md:w-6 md:h-6" />}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="font-bold text-white text-sm md:text-base truncate group-hover:text-indigo-400 transition-colors">{record.description}</h4>
+                    <h4 className="font-bold text-slate-900 text-sm md:text-base truncate group-hover:text-indigo-400 transition-colors">{record.description}</h4>
                     <p className="text-[10px] text-slate-500 font-mono uppercase mt-0.5">{record.date}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className={`text-lg md:text-xl font-black tracking-tighter text-right ${
-                    record.type === 'income' ? 'text-emerald-400' : 'text-orange-400'
+                    record.type === 'income' ? 'text-emerald-600' : 'text-orange-600'
                   }`}>
                     <span className="text-sm opacity-60 mr-1">{record.type === 'income' ? '+' : '-'}</span>
                     ¥{record.amount.toLocaleString()}
@@ -375,16 +375,16 @@ const Accounting: React.FC = () => {
       {/* Add Record Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              className="bg-white border border-slate-200 w-full max-w-md rounded-[3rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
-              <h3 className="text-2xl font-black text-white mb-8">{editingId ? '記録を修正' : '収支を記録'}</h3>
+              <h3 className="text-2xl font-black text-slate-900 mb-8">{editingId ? '記録を修正' : '収支を記録'}</h3>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="flex p-1 bg-slate-950 rounded-2xl border border-slate-800">
+                <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-200">
                   <button 
                     type="button"
                     onClick={() => setType('income')}
@@ -437,7 +437,7 @@ const Accounting: React.FC = () => {
                       setAmount('');
                       setDescription('');
                     }}
-                    className="flex-1 h-14 rounded-2xl border border-slate-800 text-slate-400 font-bold hover:bg-slate-800 transition-all"
+                    className="flex-1 h-14 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all"
                   >キャンセル</button>
                   <button 
                     type="submit" 
@@ -475,7 +475,7 @@ const Accounting: React.FC = () => {
       {/* Full Preview Modal */}
       <AnimatePresence>
         {isPreviewOpen && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl">
             <motion.div 
               key="accounting-preview"
               initial={{ opacity: 0, scale: 0.9 }}

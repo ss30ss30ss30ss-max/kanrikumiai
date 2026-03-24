@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { doc, onSnapshot, addDoc, collection } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile } from './types';
@@ -67,6 +67,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [alertState, setAlertState] = useState<{ isOpen: boolean; title: string; message: string } | null>(null);
+
+  useEffect(() => {
+    setPersistence(auth, browserSessionPersistence).catch(err => {
+      console.error("Persistence error:", err);
+    });
+  }, []);
 
   const showAlert = (title: string, message: string) => {
     setAlertState({ isOpen: true, title, message });

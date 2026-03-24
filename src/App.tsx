@@ -18,6 +18,8 @@ import AccountApproval from './components/AccountApproval';
 import DocumentCreator from './components/DocumentCreator';
 import BulletinBoard from './components/BulletinBoard';
 import Inquiries from './components/Inquiries';
+import ParkingReservation from './components/ParkingReservation';
+import MyPage from './components/MyPage';
 import ConfirmModal from './components/ConfirmModal';
 
 // Simple Error Boundary
@@ -80,7 +82,10 @@ const AppContent: React.FC = () => {
   const isMasterAdmin = (profile?.email === 'admin@smart-management.local' || profile?.email === 'ss30ss30ss30ss@gmail.com') || 
                         (user?.email === 'admin@smart-management.local' || user?.email === 'ss30ss30ss30ss@gmail.com');
   const isManager = profile?.role === 'manager' || profile?.role === 'admin' || isMasterAdmin;
-  if (profile && !profile.isApproved && profile.role !== 'manager' && !isMasterAdmin) {
+  const isAdmin = profile?.role === 'admin' || isMasterAdmin;
+  const isPrivileged = profile && (['manager', 'admin', 'accountant', 'asst_manager', 'asst_accountant'].includes(profile.role) || isMasterAdmin);
+  
+  if (profile && !profile.isApproved && profile.role !== 'manager' && profile.role !== 'admin' && !isMasterAdmin) {
     return <ApprovalPending />;
   }
 
@@ -88,13 +93,15 @@ const AppContent: React.FC = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard setActiveTab={setActiveTab} />;
       case 'members': return <Members />;
-      case 'accounting': return <Accounting />;
+      case 'accounting': return isPrivileged ? <Accounting /> : <Dashboard setActiveTab={setActiveTab} />;
       case 'announcements': return <Announcements />;
       case 'bulletin': return <BulletinBoard />;
       case 'inquiries': return <Inquiries />;
+      case 'parking': return <ParkingReservation />;
+      case 'mypage': return <MyPage />;
       case 'calendar': return <Calendar />;
-      case 'documents': return <DocumentCreator />;
-      case 'approval': return <AccountApproval />;
+      case 'documents': return isPrivileged ? <DocumentCreator /> : <Dashboard setActiveTab={setActiveTab} />;
+      case 'approval': return isManager ? <AccountApproval /> : <Dashboard setActiveTab={setActiveTab} />;
       case 'admin': return isManager ? <AdminPage /> : <Dashboard setActiveTab={setActiveTab} />;
       default: return <Dashboard setActiveTab={setActiveTab} />;
     }

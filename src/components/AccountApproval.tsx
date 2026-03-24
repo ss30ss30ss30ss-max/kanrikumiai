@@ -22,6 +22,12 @@ const AccountApproval: React.FC = () => {
     const q = query(collection(db, 'users'), where('isApproved', '==', false));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+      // Sort by room number
+      users.sort((a, b) => {
+        const roomA = a.roomNumber || '9999';
+        const roomB = b.roomNumber || '9999';
+        return roomA.localeCompare(roomB, undefined, { numeric: true });
+      });
       setPendingUsers(users);
       
       // Initialize selected roles

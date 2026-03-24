@@ -39,6 +39,14 @@ service cloud.firestore {
     // Collection: inquiries/{id}/messages
     // Document ID: auto-generated
     // Fields: inquiryId, senderId, senderName, content, createdAt
+    //
+    // Collection: parking_reservations
+    // Document ID: auto-generated
+    // Fields: spaceNumber, date, startTime, endTime, userId, userName, roomNumber, createdAt
+    //
+    // Collection: room_registry
+    // Document ID: roomNumber
+    // Fields: email
     // ===============================================================
 
     // Helper Functions
@@ -58,6 +66,10 @@ service cloud.firestore {
 
     function isManager() {
       return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['manager', 'admin', 'asst_manager', 'accountant', 'asst_accountant']));
+    }
+
+    function isAdmin() {
+      return isDefaultAdmin() || (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     function isApproved() {
@@ -89,52 +101,143 @@ service cloud.firestore {
              data.role in ['manager', 'admin', 'accountant', 'asst_accountant', 'asst_manager', 'resident'] &&
              data.isApproved is bool &&
              (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
-             (!('roomNumber' in data) || (data.roomNumber is string && data.roomNumber.size() < 20));
+             (!('roomNumber' in data) || (data.roomNumber is string && data.roomNumber.size() < 20)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('parking' in data) || (data.parking is string && data.parking.size() < 20)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() < 64));
+    }
+
+    function isValidMember(data) {
+      return data.keys().hasAll(['roomNumber', 'name', 'paymentStatus', 'updatedAt']) &&
+             data.roomNumber is string && data.roomNumber.size() < 20 &&
+             data.name is string && data.name.size() < 100 &&
+             data.paymentStatus in ['paid', 'unpaid'] &&
+             data.updatedAt is string && data.updatedAt.size() < 64 &&
+             (!('parkingNumber' in data) || (data.parkingNumber is string && data.parkingNumber.size() < 20)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('contact' in data) || (data.contact is string && data.contact.size() < 100)) &&
+             (!('position' in data) || (data.position is string && data.position.size() < 100));
+    }
+
+    function isValidAccounting(data) {
+      return data.keys().hasAll(['date', 'type', 'amount', 'description']) &&
+             data.date is string && data.date.size() < 64 &&
+             data.type in ['income', 'expense'] &&
+             data.amount is number && data.amount >= 0 &&
+             data.description is string && data.description.size() < 1000 &&
+             (!('category' in data) || (data.category is string && data.category.size() < 100)) &&
+             (!('authorUid' in data) || (data.authorUid is string && data.authorUid.size() < 128)) &&
+             (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() < 128)) &&
+             (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() < 128));
     }
 
     function isValidAnnouncement(data) {
       return data.keys().hasAll(['title', 'content', 'date', 'authorUid']) &&
              data.title is string && data.title.size() < 200 &&
              data.content is string && data.content.size() < 10000 &&
-             data.date is string &&
-             data.authorUid is string;
+             data.date is string && data.date.size() < 64 &&
+             data.authorUid is string && data.authorUid.size() < 128 &&
+             (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() < 1000)) &&
+             (!('readBy' in data) || (data.readBy is list && data.readBy.size() < 1000));
+    }
+
+    function isValidCalendarEvent(data) {
+      return data.keys().hasAll(['title', 'startDate', 'endDate', 'authorUid']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.startDate is string && data.startDate.size() < 64 &&
+             data.endDate is string && data.endDate.size() < 64 &&
+             data.authorUid is string && data.authorUid.size() < 128 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000));
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['title', 'date', 'sender', 'recipient', 'content', 'template', 'authorUid', 'createdAt']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.date is string && data.date.size() < 64 &&
+             data.sender is string && data.sender.size() < 100 &&
+             data.recipient is string && data.recipient.size() < 100 &&
+             data.content is string && data.content.size() < 10000 &&
+             data.template in ['notice', 'meeting', 'request'] &&
+             data.authorUid is string && data.authorUid.size() < 128 &&
+             data.createdAt is string && data.createdAt.size() < 64 &&
+             (!('footer' in data) || (data.footer is string && data.footer.size() < 1000));
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['uid', 'action', 'timestamp']) &&
+             data.uid is string && data.uid.size() < 128 &&
+             data.action is string && data.action.size() < 200 &&
+             data.timestamp is string && data.timestamp.size() < 64 &&
+             (!('email' in data) || (data.email is string && data.email.size() < 256)) &&
+             (!('details' in data) || (data.details is string && data.details.size() < 2000));
     }
 
     function isValidBulletinPost(data) {
       return data.keys().hasAll(['title', 'content', 'authorUid', 'authorName', 'createdAt']) &&
              data.title is string && data.title.size() < 200 &&
              data.content is string && data.content.size() < 5000 &&
-             data.authorUid is string &&
-             data.authorName is string && data.authorName.size() < 100;
+             data.authorUid is string && data.authorUid.size() < 128 &&
+             data.authorName is string && data.authorName.size() < 100 &&
+             data.createdAt is string && data.createdAt.size() < 64 &&
+             (!('authorRoom' in data) || (data.authorRoom is string && data.authorRoom.size() < 20)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() < 64)) &&
+             (!('comments' in data) || (data.comments is list && data.comments.size() < 100));
     }
 
     function isValidInquiry(data) {
       return data.keys().hasAll(['userId', 'userName', 'roomNumber', 'subject', 'status', 'createdAt']) &&
-             data.userId is string && data.userName is string && data.roomNumber is string &&
+             data.userId is string && data.userId.size() < 128 &&
+             data.userName is string && data.userName.size() < 100 &&
+             data.roomNumber is string && data.roomNumber.size() < 20 &&
              data.subject is string && data.subject.size() < 200 &&
              data.status in ['open', 'closed'] &&
-             data.createdAt is string;
+             data.createdAt is string && data.createdAt.size() < 64;
     }
 
     function isValidInquiryMessage(data) {
       return data.keys().hasAll(['inquiryId', 'senderId', 'senderName', 'content', 'createdAt']) &&
-             data.inquiryId is string && data.senderId is string && 
-             data.senderName is string && data.content is string &&
-             data.content.size() < 5000 &&
-             data.createdAt is string;
+             data.inquiryId is string && data.inquiryId.size() < 128 &&
+             data.senderId is string && data.senderId.size() < 128 &&
+             data.senderName is string && data.senderName.size() < 100 &&
+             data.content is string && data.content.size() < 5000 &&
+             data.createdAt is string && data.createdAt.size() < 64;
     }
 
     function isValidInquiryUpdate(data) {
       return data.keys().hasAll(['userId', 'userName', 'roomNumber', 'subject', 'status', 'createdAt']) &&
-             data.userId is string && data.userName is string && data.roomNumber is string &&
+             data.userId is string && data.userId.size() < 128 &&
+             data.userName is string && data.userName.size() < 100 &&
+             data.roomNumber is string && data.roomNumber.size() < 20 &&
              data.subject is string && data.subject.size() < 200 &&
              data.status in ['open', 'closed'] &&
-             data.createdAt is string &&
+             data.createdAt is string && data.createdAt.size() < 64 &&
              (!('lastMessage' in data) || (data.lastMessage is string && data.lastMessage.size() < 5000)) &&
-             (!('lastMessageAt' in data) || data.lastMessageAt is string) &&
-             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('lastMessageAt' in data) || (data.lastMessageAt is string && data.lastMessageAt.size() < 64)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() < 64)) &&
              (!('unreadByManager' in data) || data.unreadByManager is bool) &&
              (!('unreadByResident' in data) || data.unreadByResident is bool);
+    }
+
+    function isValidParkingReservation(data) {
+      return data.keys().hasAll(['spaceNumber', 'date', 'startTime', 'endTime', 'userId', 'userName', 'roomNumber', 'carNumber', 'createdAt']) &&
+             data.spaceNumber is int && data.spaceNumber >= 1 && data.spaceNumber <= 4 &&
+             data.date is string && data.date.size() < 20 &&
+             data.startTime is string && data.startTime.size() < 10 &&
+             data.endTime is string && data.endTime.size() < 10 &&
+             data.userId is string && data.userId.size() < 128 &&
+             data.userName is string && data.userName.size() < 100 &&
+             data.roomNumber is string && data.roomNumber.size() < 20 &&
+             data.carNumber is string && data.carNumber.size() < 50 &&
+             data.createdAt is string && data.createdAt.size() < 64;
+    }
+
+    function isValidRoomRegistry(data) {
+      return data.keys().hasAll(['email']) &&
+             data.email is string && data.email.size() < 256;
+    }
+
+    function isParkingPublic() {
+      return get(/databases/$(database)/documents/settings/parking).data.isPublic == true;
     }
 
     // Rules
@@ -144,45 +247,46 @@ service cloud.firestore {
                     (request.resource.data.role == 'resident' || isDefaultAdmin());
       allow update: if (isManager() || (isAuthenticated() && request.auth.uid == uid && request.resource.data.role == resource.data.role)) &&
                     isValidUser(request.resource.data);
-      allow delete: if isManager() && 
+      allow delete: if isAdmin() && 
                     !(resource.data.email in ["ss30ss30ss30ss@gmail.com", "admin@smart-management.local"]);
     }
 
     match /members/{roomNumber} {
       allow read: if isApproved();
-      allow write: if isManager() || isAccountant();
+      allow write: if (isManager() || isAccountant()) && isValidMember(request.resource.data);
     }
 
     match /accounting/{id} {
-      allow read: if isApproved();
-      allow write: if isManager() || isAccountant();
+      allow read: if isManager() || isAccountant();
+      allow write: if (isManager() || isAccountant()) && isValidAccounting(request.resource.data);
     }
 
     match /announcements/{id} {
       allow read: if isApproved();
-      allow create, delete: if isManager() || isAsstManager();
-      allow update: if isManager() || isAsstManager() || (
+      allow create, delete: if isManager() && (request.method == 'delete' || isValidAnnouncement(request.resource.data));
+      allow update: if (isManager() || (
         isApproved() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) &&
         request.resource.data.readBy is list &&
+        request.resource.data.readBy.size() < 1000 &&
         request.auth.uid in request.resource.data.readBy &&
         request.resource.data.readBy.size() <= (resource.data.get('readBy', [])).size() + 1
-      );
+      )) && (isManager() || true); // Validation for readBy update is inline
     }
 
     match /calendar_events/{id} {
       allow read: if isApproved();
-      allow write: if isManager() || isAsstManager();
+      allow write: if isManager() && (request.method == 'delete' || isValidCalendarEvent(request.resource.data));
     }
 
     match /logs/{id} {
-      allow read: if isManager();
-      allow create: if isAuthenticated() || (request.resource.data.action == 'ログイン失敗');
+      allow read: if isAdmin();
+      allow create: if (isAuthenticated() || (request.resource.data.action == 'ログイン失敗')) && isValidLog(request.resource.data);
     }
 
     match /documents/{id} {
       allow read: if isApproved();
-      allow write: if isManager() || isAsstManager();
+      allow write: if isManager() && (request.method == 'delete' || isValidDocument(request.resource.data));
     }
 
     match /bulletin_posts/{id} {
@@ -215,7 +319,21 @@ service cloud.firestore {
 
     match /room_registry/{roomNumber} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidRoomRegistry(request.resource.data);
+    }
+
+    match /settings/parking {
+      allow read: if isAuthenticated();
+      allow write: if isManager();
+    }
+
+    match /parking_reservations/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isApproved() && (isParkingPublic() || isManager()) && 
+                    request.resource.data.userId == request.auth.uid &&
+                    isValidParkingReservation(request.resource.data);
+      allow update: if isApproved() && (isManager() || (resource.data.userId == request.auth.uid && isValidParkingReservation(request.resource.data)));
+      allow delete: if isApproved() && (resource.data.userId == request.auth.uid || isManager());
     }
   }
 }
